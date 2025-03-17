@@ -23,6 +23,7 @@ const int IDLE = 2000;
 const int LOAD = 4800;
 const int SCORE = 16000;
 const int FAR = 22800;
+const bool TESTMODE = false;
 
 int leftY;
 int rightX;
@@ -299,7 +300,7 @@ void initialize() {
     });
 
     pros::Task autonSelector([&]() {
-        while(selecting) {
+        while(selecting && !TESTMODE) {
             pros::lcd::set_text(4, "Selected Auton:");
 
             autoNum = (autoNum + 5) % 5;
@@ -450,54 +451,67 @@ void autonomous(void) {
 
 void opcontrol() {
     autoRunning = false;
-    lemlib::Timer posProtected(31000);
-
-    if (recording) {
-        recordings = fopen("/usd/recording.txt", "a");
-        fprintf(recordings, "");
-        fprintf(recordings, "pros::Task ladybrownMove([&](){");
-        fprintf(recordings, "while(!autoRunning){if(scoreState)ladybrown_target=FAR;else if(loadState)ladybrown_target=LOAD;else ladybrown_target=IDLE;");
-        fprintf(recordings, "ladybrown.move_voltage(ladybrownPID.update(ladybrown_target-ladybrownPos.get_position()));pros::delay(20);}});\n");
-    }
-
-    while (true) {
-        intake.move_voltage(intakeFwdControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R2))
-                            + intakeRevControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_A)));
-
-        rightDoink.set_value(rightDoinkControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R1)));
-        leftDoink.set_value(rightDoinkControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_LEFT)));
-        loadState = loadStateControl.use(ctrl.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_DOWN));
-        scoreState = scoreStateController.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L1));
-        clamp.set_value(clampControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L2)));
-
-        leftY = ctrl.get_analog(ANALOG_LEFT_Y);
-        rightX = ctrl.get_analog(ANALOG_RIGHT_X);
-        chassis.arcade(leftY, rightX, false, 0.75);
-
-        if (posProtected.isDone()) ctrl.rumble("**");
-
-        pros::delay(20);
-
-        if (!recording) continue;
-
-        if (ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_X)) {
-            recording = false;
-            fclose(recordings);
+    
+    if (!TESTMODE) {
+        lemlib::Timer posProtected(31000);
+    
+        if (recording) {
+            recordings = fopen("/usd/recording.txt", "a");
+            fprintf(recordings, "");
+            fprintf(recordings, "pros::Task ladybrownMove([&](){");
+            fprintf(recordings, "while(!autoRunning){if(scoreState)ladybrown_target=FAR;else if(loadState)ladybrown_target=LOAD;else ladybrown_target=IDLE;");
+            fprintf(recordings, "ladybrown.move_voltage(ladybrownPID.update(ladybrown_target-ladybrownPos.get_position()));pros::delay(20);}});\n");
         }
-
-        leftYRecorder.update(leftY, lastLeftY);
-        rightXRecorder.update(rightX, lastRightX);
-        fprintf(recordings, "chassis.arcade(leftY, rightX, false, 0.75);");
-        firstStageIntakeRecorder.update(firstStageIntake.get_voltage(), lastFirstStageVoltage);
-        secondStageIntakeRecorder.update(secondStageIntake.get_voltage(), lastSecondStageVoltage);
-        loadStateRecorder.update(loadState, lastLoadState);
-        scoreStateRecorder.update(scoreState, lastScoreState);
-        leftDoinkRecorder.update(leftDoink.is_extended(), lastLeftDoink);
-        rightDoinkRecorder.update(rightDoink.is_extended(), lastRightDoink);
-        clampRecorder.update(clamp.is_extended(), lastClamp);
-        intakeLiftRecorder.update(intakeLift.is_extended(), lastIntakeLift);
-
-        fprintf(recordings, "pros::delay(%f);\n", pros::millis() - lastWrite);
-        lastWrite = pros::millis();
+    
+        while (true) {
+            intake.move_voltage(intakeFwdControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R2))
+                                + intakeRevControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_A)));
+    
+            rightDoink.set_value(rightDoinkControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R1)));
+            leftDoink.set_value(rightDoinkControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_LEFT)));
+            loadState = loadStateControl.use(ctrl.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_DOWN));
+            scoreState = scoreStateController.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L1));
+            clamp.set_value(clampControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L2)));
+    
+            leftY = ctrl.get_analog(ANALOG_LEFT_Y);
+            rightX = ctrl.get_analog(ANALOG_RIGHT_X);
+            chassis.arcade(leftY, rightX, false, 0.75);
+    
+            if (posProtected.isDone()) ctrl.rumble("**");
+    
+            pros::delay(20);
+    
+            if (!recording) continue;
+    
+            if (ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_X)) {
+                recording = false;
+                fclose(recordings);
+            }
+    
+            leftYRecorder.update(leftY, lastLeftY);
+            rightXRecorder.update(rightX, lastRightX);
+            fprintf(recordings, "chassis.arcade(leftY, rightX, false, 0.75);");
+            firstStageIntakeRecorder.update(firstStageIntake.get_voltage(), lastFirstStageVoltage);
+            secondStageIntakeRecorder.update(secondStageIntake.get_voltage(), lastSecondStageVoltage);
+            loadStateRecorder.update(loadState, lastLoadState);
+            scoreStateRecorder.update(scoreState, lastScoreState);
+            leftDoinkRecorder.update(leftDoink.is_extended(), lastLeftDoink);
+            rightDoinkRecorder.update(rightDoink.is_extended(), lastRightDoink);
+            clampRecorder.update(clamp.is_extended(), lastClamp);
+            intakeLiftRecorder.update(intakeLift.is_extended(), lastIntakeLift);
+    
+            fprintf(recordings, "pros::delay(%f);\n", pros::millis() - lastWrite);
+            lastWrite = pros::millis();
+        }
+    } else {
+        // button for turning robot a chosen distance
+        // button for driving robot  a chosen distance
+        // button for colorsort testing
+        // normal drive control
+        // buttons to switch display between motor temp, sensor readings, and position log
+        // button to save current coords to screen
+        // coord log should log coords with label with 1st points at top and last points at bottom
+        // Ex: Coords 1: (x=12, y=-24, theta=35)
+        // button for PID tuner
     }
 }

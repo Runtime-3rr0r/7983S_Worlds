@@ -9,7 +9,7 @@ This repository contains the advanced competition code for **VEX Team 7983S**, d
 
 ## 📂 **Project Structure**  
 - **Main Code:** Located in `src/main`  
-- **Pure Pursuit Algorithms:** Found in the `static` folder  
+- **Pure Pursuit Files:** Found in the `static` folder  
 - **Configuration Files & Autonomous Recording:** Managed dynamically during operation  
 
 ## 🚀 **Key Innovations**  
@@ -36,7 +36,7 @@ This repository contains the advanced competition code for **VEX Team 7983S**, d
 ## ⚙️ **Setup & Installation**  
 1. Clone this repository:  
    ```bash
-   git clone https://github.com/your-repo/7983S-worlds.git
+   git clone https://github.com/Runtime-3rr0r/7983S-worlds.git
    ```  
 2. Open in **VEXcode Pro V5** or a compatible C++ environment.  
 3. Deploy to your **VEX V5 Robot Brain**.  

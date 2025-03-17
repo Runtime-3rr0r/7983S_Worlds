@@ -456,11 +456,11 @@ void opcontrol() {
             intake.move_voltage(motorControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R2))
                                 + motorRevControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_A)));
     
-            rightDoink.set_value(rightDoinkControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R1)));
-            leftDoink.set_value(leftDoinkControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_LEFT)));
-            loadState = loadStateControl.use(ctrl.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_DOWN));
-            scoreState = scoreStateController.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L1));
-            clamp.set_value(clampControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L2)));
+            rightDoink.set_value(digitalControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R1)));
+            leftDoink.set_value(digitalControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_LEFT)));
+            loadState = digitalToggleControl.use(ctrl.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_DOWN));
+            scoreState = digitalControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L1));
+            clamp.set_value(digitalControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L2)));
     
             leftY = ctrl.get_analog(ANALOG_LEFT_Y);
             rightX = ctrl.get_analog(ANALOG_RIGHT_X);

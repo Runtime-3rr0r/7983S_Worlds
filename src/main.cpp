@@ -1,19 +1,20 @@
 #include "main.h"
-#include "lemlib/api.hpp" // IWYU pragma: keep
-#include "lemlib/chassis/chassis.hpp"
 #include "lemlib/chassis/trackingWheel.hpp"
+#include "lemlib/chassis/chassis.hpp"
+#include "lemlib/api.hpp" // IWYU pragma: keep
 #include "lemlib/pid.hpp"
+#include "pros/motor_group.hpp"
+#include "pros/rotation.hpp"
+#include "pros/distance.hpp"
+#include "lemlib/timer.hpp"
+#include "pros/optical.hpp"
+#include "pros/motors.hpp"
+#include "pros/rtos.hpp"
+#include "pros/misc.hpp"
 #include "pros/adi.hpp"
 #include "pros/imu.hpp"
-#include "pros/misc.hpp"
-#include "pros/motor_group.hpp"
-#include "pros/motors.hpp"
-#include "pros/optical.hpp"
-#include "pros/rotation.hpp"
-#include "pros/rtos.hpp"
+#include "pros/misc.h"
 
-// settings/vars
-const bool record = false;
 const int RED = 1;
 const int BLUE = -1;
 const int MOTOR = 1;
@@ -23,30 +24,41 @@ const int LOAD = 4800;
 const int SCORE = 16000;
 const int FAR = 22800;
 
+int leftY;
+int rightX;
 int autoNum = 0;
 int allyColor = 0;
+int spintake = 0;
 int ladybrown_target = 0;
+int lastLeftY = 0;
+int lastRightX = 0;
+int lastFirstStageVoltage = 0;
+int lastSecondStageVoltage = 0;
 
+bool lastLeftDoink = false;
+bool lastRightDoink = false;
+bool lastClamp = false;
+bool lastIntakeLift = false;
 bool selecting = true;
 bool loadState = false;
 bool scoreState = false;
+bool autoRunning = false;
+bool recording = false;
+bool lastLoadState = false;
+bool lastScoreState = false;
 
 float ladybrownErr = 0;
 float lastWrite = 0;
+float colorReading = 0;
+
+FILE* recordings = nullptr;
 
 pros::Controller ctrl(pros::E_CONTROLLER_MASTER);
-
-pros::Motor ladybrown(-10, pros::MotorGearset::green);
 
 pros::Motor firstStageIntake(9, pros::MotorGearset::green);
 pros::Motor secondStageIntake(1, pros::MotorGearset::blue);
 
-pros::Motor Lf(-18, pros::v5::MotorGears::blue);
-pros::Motor Lm(-19, pros::v5::MotorGears::blue);
-pros::Motor Lb(20, pros::v5::MotorGears::blue);
-pros::Motor Rf(12, pros::v5::MotorGears::blue);
-pros::Motor Rm(13, pros::v5::MotorGears::blue);
-pros::Motor Rb(-14, pros::v5::MotorGears::blue);
+pros::Motor ladybrown(-10, pros::MotorGearset::green);
 
 pros::MotorGroup leftDrive({-18, -19, 20}, pros::MotorGearset::blue);
 pros::MotorGroup rightDrive({12, 13, -14}, pros::MotorGearset::blue);
@@ -54,25 +66,29 @@ pros::MotorGroup intake({9, 1});
 
 pros::adi::Pneumatics rightDoink = pros::adi::Pneumatics(7, false);
 pros::adi::Pneumatics leftDoink = pros::adi::Pneumatics(4, false);
-pros::adi::Pneumatics clamp = pros::adi::Pneumatics(8, false);
 pros::adi::Pneumatics intakeLift = pros::adi::Pneumatics(3, false);
+pros::adi::Pneumatics clamp = pros::adi::Pneumatics(8, false);
 
-pros::Imu imu(2);
 pros::Rotation horizontalEncoder(17);
 pros::Rotation verticalEncoder(-15);
+pros::Rotation ladybrownPos(8);
+
+pros::Distance clampDistance(2);
+pros::Distance xDistance(6);
+pros::Distance yDistance(5);
 
 pros::Optical colorSensor(3);
 
-pros::Rotation ladybrownPos(8);
+pros::Imu imu(2);
 
 lemlib::TrackingWheel horizontalTracker(&horizontalEncoder,
-                                               lemlib::Omniwheel::NEW_2,
-                                               -5
+										lemlib::Omniwheel::NEW_2,
+										-5
 );
 
 lemlib::TrackingWheel verticalTracker(&verticalEncoder,
-                                             lemlib::Omniwheel::NEW_2,
-                                             5            
+									lemlib::Omniwheel::NEW_2,
+									5            
 );
 
 lemlib::Drivetrain drivetrain(&leftDrive,
@@ -84,10 +100,10 @@ lemlib::Drivetrain drivetrain(&leftDrive,
 );
 
 lemlib::OdomSensors odom(&verticalTracker,
-                           nullptr,
-                           &horizontalTracker,
-                           nullptr,
-                           &imu      
+						nullptr,
+						&horizontalTracker,
+						nullptr,
+						&imu      
 );
 
 lemlib::PID ladybrownPID(0.04,
@@ -96,25 +112,47 @@ lemlib::PID ladybrownPID(0.04,
 );
 
 lemlib::ControllerSettings lateralPID(22,
-                                             0,
-                                             45,
-                                             0,
-                                             1,
-                                             100,
-                                             3,
-                                             500,
-                                             127
+									0,
+									45,
+									0,
+									1,
+									100,
+									3,
+									500,
+									127
 );
 
 lemlib::ControllerSettings angularPID(2,
-                                             0,
-                                             10,
-                                             0,
-                                             0,
-                                             0,
-                                             0,
-                                             0,
-                                             127
+									0,
+									10,
+									0,
+									0,
+									0,
+									0,
+									0,
+									127
+);
+
+lemlib::ControllerSettings lateralMogoPID(22,
+										0,
+										45,
+										0,
+										1,
+										100,
+										3,
+										500,
+										127
+);
+
+lemlib::ControllerSettings angularMogoPID(2,
+										0,
+										10,
+										0,
+										0,
+										0,
+										0,
+										0,
+										127
 );
 
 lemlib::ExpoDriveCurve throttleCurve(3,
@@ -135,7 +173,15 @@ lemlib::Chassis chassis(drivetrain,
                        &steerCurve
 );
 
-struct driverControl {
+lemlib::Chassis mogoChassis(drivetrain,
+						   lateralMogoPID,
+						   angularMogoPID,
+						   odom,
+						   &throttleCurve,
+						   &steerCurve
+);
+
+struct controlSetup {
 
     bool toggle;
     bool inverseOutput;
@@ -143,7 +189,7 @@ struct driverControl {
     int state = 0;
     int outputType;
     
-    driverControl(int outputType,
+    controlSetup(int outputType,
                 bool toggle = false,
                 bool inverseOutput = false
                 ):
@@ -157,23 +203,61 @@ struct driverControl {
         else if (condition) state = true;
 
         if (outputType == MOTOR) {
-            if (state && inverseOutput) return -127;
-            else if (state) return 127;
+            if (state && inverseOutput) return -12000;
+            else if (state) return 12000;
         }
-        
+
         if (outputType == DIGITAL) return state;
-        
+
         return 0;
     }
 };
 
-driverControl intakeFwdControl(MOTOR);
-driverControl intakeRevControl(MOTOR, false, true);
-driverControl rightDoinkControl(DIGITAL);
-driverControl leftDoinkControl(DIGITAL);
-driverControl clampControl(DIGITAL);
-driverControl loadStateControl(DIGITAL, true);
-driverControl scoreStateController(DIGITAL);
+struct recordingSetup {
+	int value;
+	int lastValue;
+
+	std::string command;
+	std::string preCommand;
+	std::string postCommand;
+	
+	FILE* fileName;
+
+	recordingSetup(FILE* fileName,
+				std::string preCommand,
+				std::string postCommand)
+				:
+				fileName(fileName),
+				preCommand(preCommand),
+				postCommand(postCommand)
+				{}
+
+	void update(int value, int lastValue) {
+		if (value != lastValue) {
+			command = preCommand + "%d" + postCommand;
+			fprintf(fileName, "%d", value);
+		}
+	}
+};
+
+controlSetup intakeFwdControl(MOTOR);
+controlSetup intakeRevControl(MOTOR, false, true);
+controlSetup rightDoinkControl(DIGITAL);
+controlSetup leftDoinkControl(DIGITAL);
+controlSetup clampControl(DIGITAL);
+controlSetup loadStateControl(DIGITAL, true);
+controlSetup scoreStateController(DIGITAL);
+
+recordingSetup leftYRecorder(recordings, "leftY=", ";");
+recordingSetup rightXRecorder(recordings, "rightX=", ";");
+recordingSetup firstStageIntakeRecorder(recordings, "firstStageIntake.move_voltage(", ");");
+recordingSetup secondStageIntakeRecorder(recordings, "secondStageIntake.move_voltage(", ");");
+recordingSetup loadStateRecorder(recordings, "loadState=", ";");
+recordingSetup scoreStateRecorder(recordings, "scoreState=", ";");
+recordingSetup leftDoinkRecorder(recordings, "leftDoink.set_value(", ");");
+recordingSetup rightDoinkRecorder(recordings, "rightDoink.set_value(", ");");
+recordingSetup clampRecorder(recordings, "clamp.set_value(", ");");
+recordingSetup intakeLiftRecorder(recordings, "intakeLift.set_value(", ");");
 
 void prevAuto() {
     --autoNum;
@@ -189,6 +273,7 @@ void nextAuto() {
 
 void initialize() {
     pros::lcd::initialize();
+    ctrl.clear();
     chassis.calibrate();
     chassis.setPose(0, 0, -1);
 
@@ -202,7 +287,11 @@ void initialize() {
             pros::lcd::print(0, "X: %f", chassis.getPose().x);
             pros::lcd::print(1, "Y: %f", chassis.getPose().y);
             pros::lcd::print(2, "Theta: %f", chassis.getPose().theta);
-           
+            
+            ctrl.print(1, 0, "X: %f", chassis.getPose().x);
+            ctrl.print(2, 0, "Y: %f", chassis.getPose().y);
+            ctrl.print(3, 0, "Theta: %f", chassis.getPose().theta);
+
             lemlib::telemetrySink()->info("Chassis pose: {}", chassis.getPose());
            
             pros::delay(20);
@@ -237,8 +326,6 @@ void initialize() {
     });
 }
 
-int spintake = 0;
-
 void skills() {}
 
 void redRingSide() {
@@ -247,37 +334,35 @@ void redRingSide() {
     chassis.setPose(0, 0, 135);
 
     // ally stake
-    ladybrown.move(127);
+    ladybrown.move_voltage(12000);
     pros::delay(1000);
 
     // clear ally stake
     chassis.moveToPose(-6, 12, 135, 750, {.forwards=false});
-    ladybrown.move(-127);
+    ladybrown.move_voltage(-12000);
 
     // get ally stake ring
 
     // goal
     chassis.moveToPose(-3.3, 35.9, 223.2, 1750, {.forwards=false});
-    pros::delay(2250);
-    clamp.extend();
     pros::delay(500);
 
     // auton line rings
     leftDoink.extend();
     spintake = 1;
-    chassis.moveToPose(-27.5, 61.53, 334.54, 2000);
+    mogoChassis.moveToPose(-27.5, 61.53, 334.54, 2000);
 
     // doink/mid ring
-    chassis.moveToPose(-17.6, 39.5, 334.54, 1750, {.forwards=false});
+    mogoChassis.moveToPose(-17.6, 39.5, 334.54, 1750, {.forwards=false});
     pros::delay(500);
     leftDoink.retract();
     rightDoink.extend();
     pros::delay(250);
-    chassis.moveToPose(-36.2, 31.2, 232.3, 2000);
+    mogoChassis.moveToPose(-36.2, 31.2, 232.3, 2000);
 
     // corner ring
     rightDoink.retract();
-    chassis.moveToPose(-58.9, 3.64, -231.18, 3000);
+    mogoChassis.moveToPose(-58.9, 3.64, -231.18, 3000);
     pros::delay(1000);
 }
 
@@ -299,30 +384,49 @@ void blueGoalSide() {
     chassis.setPose(0, 0, 0);
 }
 
-bool autoRunning = false;
 void autonomous(void) {
     autoRunning = true;
 
     pros::Task colorSort([&]() {
-   
         while (autoRunning) {
-            float value = colorSensor.get_hue();
-  
-            if (value > 140 && value <= 340 && allyColor == 1) {
-                secondStageIntake.set_zero_position(0);
-                 
-                while (secondStageIntake.get_position() < 0.370) intake.move(127);
-                intake.move(-127);
+            colorReading = colorSensor.get_hue();
+            secondStageIntake.set_zero_position(0);
+
+            if (colorReading > 140 && colorReading <= 340 && autoNum % 2 == 0) {
+                while (secondStageIntake.get_position() < 0.370) intake.move_voltage(12000);
+                intake.move_voltage(-12000);
+
+                continue;
+            } else if (colorReading < 140 && colorReading >= 340 && autoNum % 2 != 0) {
+                while (secondStageIntake.get_position() < 0.370) intake.move_voltage(12000);
+                intake.move_voltage(-12000);
 
                 continue;
             }
   
-            if (spintake == 1) intake.move(127);
-            else if (spintake == -1) intake.move(-127);
-            else intake.move(0);
+            if (spintake == 1) intake.move_voltage(12000);
+            else if (spintake == -1) intake.move_voltage(-12000);
+            else intake.move_voltage(0);
 
             pros::delay(20);
         }
+    });
+
+	pros::Task autoClamp([&]() {
+		while (autoRunning) {
+			if (clampDistance.get_distance() < 15) clamp.extend();
+			else clamp.retract();
+			pros::delay(20);
+		}
+	});
+
+	pros::Task ladybrownMove([&]() {
+		if (scoreState) ladybrown_target = FAR;
+		else if (loadState) ladybrown_target = LOAD;
+		else ladybrown_target = IDLE;
+
+		ladybrown.move_voltage(ladybrownPID.update(ladybrown_target - ladybrownPos.get_position()));
+		pros::delay(20);
     });
 
     switch (autoNum) {
@@ -346,71 +450,54 @@ void autonomous(void) {
 
 void opcontrol() {
     autoRunning = false;
+    lemlib::Timer posProtected(31000);
 
-    FILE* recordings = fopen("/usd/recording.txt", "w");
-        fprintf(recordings, "");
-        fclose(recordings);
-
-    if (record) {
+    if (recording) {
         recordings = fopen("/usd/recording.txt", "a");
+        fprintf(recordings, "");
         fprintf(recordings, "pros::Task ladybrownMove([&](){");
         fprintf(recordings, "while(!autoRunning){if(scoreState)ladybrown_target=FAR;else if(loadState)ladybrown_target=LOAD;else ladybrown_target=IDLE;");
-        fprintf(recordings, "ladybrown.move(ladybrownPID.update(ladybrown_target-ladybrownPos.get_position()));pros::delay(20);}});\n");
-        fclose(recordings);
+        fprintf(recordings, "ladybrown.move_voltage(ladybrownPID.update(ladybrown_target-ladybrownPos.get_position()));pros::delay(20);}});\n");
     }
 
-    pros::Task ladybrownMove([&]() {
-        while (!autoRunning) {
-            if (scoreState) ladybrown_target = FAR;
-            else if (loadState) ladybrown_target = LOAD;
-            else ladybrown_target = IDLE;
-
-            ladybrown.move(ladybrownPID.update(ladybrown_target - ladybrownPos.get_position()));
-            pros::delay(20);
-        }
-    });
-
     while (true) {
-
-        intake.move(intakeFwdControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R2))
-                    + intakeRevControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_A)));
+        intake.move_voltage(intakeFwdControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R2))
+                            + intakeRevControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_A)));
 
         rightDoink.set_value(rightDoinkControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R1)));
-
-        rightDoink.set_value(rightDoinkControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_LEFT)));
-
-        clamp.set_value(clampControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L2)));
-        
+        leftDoink.set_value(rightDoinkControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_LEFT)));
         loadState = loadStateControl.use(ctrl.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_DOWN));
         scoreState = scoreStateController.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L1));
+        clamp.set_value(clampControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L2)));
 
-        int left_y = ctrl.get_analog(ANALOG_LEFT_Y);
-        int right_x = ctrl.get_analog(ANALOG_RIGHT_X);
-        chassis.arcade(left_y, right_x, false, 0.75);
+        leftY = ctrl.get_analog(ANALOG_LEFT_Y);
+        rightX = ctrl.get_analog(ANALOG_RIGHT_X);
+        chassis.arcade(leftY, rightX, false, 0.75);
+
+        if (posProtected.isDone()) ctrl.rumble("**");
 
         pros::delay(20);
 
-        if (!record) continue;
+        if (!recording) continue;
 
-        recordings = fopen("/usd/recording.txt", "a");
+        if (ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_X)) {
+            recording = false;
+            fclose(recordings);
+        }
 
-        fprintf(recordings, "Lf.move_voltage(%d);", Lf.get_voltage());
-        fprintf(recordings, "Lm.move_voltage(%d);", Lm.get_voltage());
-        fprintf(recordings, "Lb.move_voltage(%d);", Lb.get_voltage());
-        fprintf(recordings, "Rf.move_voltage(%d);", Rf.get_voltage());
-        fprintf(recordings, "Rm.move_voltage(%d);", Rm.get_voltage());
-        fprintf(recordings, "Rb.move_voltage(%d);", Rb.get_voltage());
-        fprintf(recordings, "firstStageIntake.move_voltage(%d);", firstStageIntake.get_voltage());
-        fprintf(recordings, "secondStageIntake.move_voltage(%d);", secondStageIntake.get_voltage());
-        fprintf(recordings, "loadState = %d;", loadState);
-        fprintf(recordings, "scoreState = %d;", scoreState);
-        fprintf(recordings, "leftDoink.set_value(%d);", leftDoink.is_extended());
-        fprintf(recordings, "rightDoink.set_value(%d);", rightDoink.is_extended());
-        fprintf(recordings, "clamp.set_value(%d);", clamp.is_extended());
-        fprintf(recordings, "intakeLift.set_value(%d);", intakeLift.is_extended());
+        leftYRecorder.update(leftY, lastLeftY);
+        rightXRecorder.update(rightX, lastRightX);
+        fprintf(recordings, "chassis.arcade(leftY, rightX, false, 0.75);");
+        firstStageIntakeRecorder.update(firstStageIntake.get_voltage(), lastFirstStageVoltage);
+        secondStageIntakeRecorder.update(secondStageIntake.get_voltage(), lastSecondStageVoltage);
+        loadStateRecorder.update(loadState, lastLoadState);
+        scoreStateRecorder.update(scoreState, lastScoreState);
+        leftDoinkRecorder.update(leftDoink.is_extended(), lastLeftDoink);
+        rightDoinkRecorder.update(rightDoink.is_extended(), lastRightDoink);
+        clampRecorder.update(clamp.is_extended(), lastClamp);
+        intakeLiftRecorder.update(intakeLift.is_extended(), lastIntakeLift);
 
         fprintf(recordings, "pros::delay(%f);\n", pros::millis() - lastWrite);
         lastWrite = pros::millis();
-        fclose(recordings);
     }
 }

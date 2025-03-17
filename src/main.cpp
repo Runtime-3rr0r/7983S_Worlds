@@ -18,7 +18,8 @@
 const int RED = 1;
 const int BLUE = -1;
 const int MOTOR = 1;
-const int DIGITAL = 1;
+const int DIGITAL = 0;
+const int VAR = 2;
 const int IDLE = 2000;
 const int LOAD = 4800;
 const int SCORE = 16000;
@@ -215,30 +216,28 @@ struct controlSetup {
 };
 
 struct recordingSetup {
-	int value;
-	int lastValue;
+  	int value;
+  	int lastValue;
+  	int controlType;
+  
+  	std::string name;
+  	
+  	FILE* fileName;
+  
+  	recordingSetup(FILE* fileName,
+  				int controlType)
+  				:
+  				fileName(fileName),
+  				controlType(controlType)
+  				{}
 
-	std::string command;
-	std::string preCommand;
-	std::string postCommand;
-	
-	FILE* fileName;
-
-	recordingSetup(FILE* fileName,
-				std::string preCommand,
-				std::string postCommand)
-				:
-				fileName(fileName),
-				preCommand(preCommand),
-				postCommand(postCommand)
-				{}
-
-	void update(int value, int lastValue) {
-		if (value != lastValue) {
-			command = preCommand + "%d" + postCommand;
-			fprintf(fileName, "%d", value);
-		}
-	}
+  	void update(std::string name, int value, int lastValue) {
+    		if (value != lastValue) {
+    			if (controlType == MOTOR) fprintf(fileName, name + ".move_voltage(%d);", value);
+          else if (controlType == DIGITAL) fprintf(fileName, name + ".set_value(%d);", value);
+          else fprintf(fileName, name + "=%d;", value);
+    		}
+  	}
 };
 
 controlSetup intakeFwdControl(MOTOR);
@@ -249,16 +248,16 @@ controlSetup clampControl(DIGITAL);
 controlSetup loadStateControl(DIGITAL, true);
 controlSetup scoreStateController(DIGITAL);
 
-recordingSetup leftYRecorder(recordings, "leftY=", ";");
-recordingSetup rightXRecorder(recordings, "rightX=", ";");
-recordingSetup firstStageIntakeRecorder(recordings, "firstStageIntake.move_voltage(", ");");
-recordingSetup secondStageIntakeRecorder(recordings, "secondStageIntake.move_voltage(", ");");
-recordingSetup loadStateRecorder(recordings, "loadState=", ";");
-recordingSetup scoreStateRecorder(recordings, "scoreState=", ";");
-recordingSetup leftDoinkRecorder(recordings, "leftDoink.set_value(", ");");
-recordingSetup rightDoinkRecorder(recordings, "rightDoink.set_value(", ");");
-recordingSetup clampRecorder(recordings, "clamp.set_value(", ");");
-recordingSetup intakeLiftRecorder(recordings, "intakeLift.set_value(", ");");
+recordingSetup leftYRecorder(recordings, VAR);
+recordingSetup rightXRecorder(recordings, VAR);
+recordingSetup firstStageIntakeRecorder(recordings, MOTOR);
+recordingSetup secondStageIntakeRecorder(recordings, MOTOR);
+recordingSetup loadStateRecorder(recordings, VAR);
+recordingSetup scoreStateRecorder(recordings, VAR);
+recordingSetup leftDoinkRecorder(recordings, DIGITAL);
+recordingSetup rightDoinkRecorder(recordings, DIGITAL);
+recordingSetup clampRecorder(recordings, DIGITAL);
+recordingSetup intakeLiftRecorder(recordings, DIGITAL);
 
 void prevAuto() {
     --autoNum;
@@ -468,7 +467,7 @@ void opcontrol() {
                                 + intakeRevControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_A)));
     
             rightDoink.set_value(rightDoinkControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R1)));
-            leftDoink.set_value(rightDoinkControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_LEFT)));
+            leftDoink.set_value(leftDoinkControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_LEFT)));
             loadState = loadStateControl.use(ctrl.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_DOWN));
             scoreState = scoreStateController.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L1));
             clamp.set_value(clampControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L2)));

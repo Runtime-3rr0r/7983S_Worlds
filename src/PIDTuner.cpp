@@ -20,6 +20,8 @@ const int BLUE = -1;
 const int MOTOR = 1;
 const int DIGITAL = 0;
 const int VAR = 2;
+const int LATERAL = 0;
+const int ANGULAR = 1;
 const int IDLE = 2000;
 const int LOAD = 4800;
 const int SCORE = 16000;
@@ -48,6 +50,7 @@ bool autoRunning = false;
 bool recording = false;
 bool lastLoadState = false;
 bool lastScoreState = false;
+bool tunerEnabled = false;
 
 float ladybrownErr = 0;
 float lastWrite = 0;
@@ -393,7 +396,7 @@ void autonomous(void) {
 
                 continue;
             }
-
+  
             if (spintake == 1) intake.move_voltage(12000);
             else if (spintake == -1) intake.move_voltage(-12000);
             else intake.move_voltage(0);
@@ -493,14 +496,98 @@ void opcontrol() {
             lastWrite = pros::millis();
         }
     } else {
-        // button for turning robot a chosen distance
-        // button for driving robot  a chosen distance
-        // button for colorsort testing
-        // normal drive control
-        // buttons to switch display between motor temp, sensor readings, and position log
-        // button to save current coords to screen
-        // coord log should log coords with label with 1st points at top and last points at bottom
-        // Ex: Coords 1: (x=12, y=-24, theta=35)
-        // button for PID tuner
+      
+        std::string tunePID(bool tune_type = LATERAL, const float tune_rate = 1,
+                            const float overshoot_threshold = 1,
+                            const int timeout = 4000) {
+
+            const int start_time = pros::millis();
+        
+            float kP = 0.01;
+            float kD = 0;
+            float last_kP = 0.01;
+            float last_kD = 0;
+            float error = 10;
+            float overshoot_distance = 0;
+            float lowest_overshoot = 1000;
+            float lateral_target = 24 / (2 * M_PI / 360) * 100;
+        
+            std::string display_kP = std::to_string(kP);
+            std::string display_kD = std::to_string(kD);
+            std::string display_lowest_overshoot = std::to_string(lowest_overshoot);
+            std::string data = display_kP + display_kD + display_lowest_overshoot;
+        
+            int restore_count = 0;
+            int consistency_count = 0;
+            int current_time = 0;
+            int angular_target = 90;
+        
+            bool restore_available = false;
+        
+            lemlib::PID movementPID(kP, 0, kD);
+        
+            while (true) {
+        
+                while (error != 0 || pros::millis() - start_time >= timeout) {
+        
+                    if (tune_type) {
+                        error = lateral_target - vertical_encoder.get_position();
+                        right_drive.move(-movementPID.update(error));
+                        left_drive.move(movementPID.update(error));
+                       
+                        if (error < 0 && lateral_target > 0) error += overshoot_distance;
+                    } else {
+                        error = lateral_target - imu.get_rotation();
+                        right_drive.move(movementPID.update(error));
+                        left_drive.move(movementPID.update(error));
+        
+                        if (error < 0 && lateral_target > 0) error += overshoot_distance;
+                    }
+                    pros::delay(20);
+                }
+        
+                if (overshoot_distance < lowest_overshoot) overshoot_distance = lowest_overshoot;
+        
+                if (overshoot_distance > lowest_overshoot && restore_available) {
+                        kP = last_kP;
+                        kD = last_kD;
+                } else {
+                    if (overshoot_distance > overshoot_threshold) {
+                        kD += tune_rate * overshoot_distance;
+                        restore_available = true;
+                        restore_count += 1;
+                    } else {
+                        kP += tune_rate;
+                        restore_available = false;
+                        restore_count = 0;
+                    }
+                }
+               
+                if (consistency_count == 5) return data;
+                else if (kP == last_kP && kD == last_kD) consistency_count += 1;
+               
+                lemlib::PID movementPID(kP, 0, kD);
+                data = display_kP + display_kD + display_lowest_overshoot;
+                last_kP = kP;
+                last_kD = kD;
+        
+                overshoot_distance = 0;
+                error = 10;
+                lateral_target *= -1;
+                angular_target *= -1;
+                vertical_encoder.reset_position();
+                imu.reset(true);
+            }
+            return "";
+        }
+        
+        if (ctrl.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_B)) tunePID(LATERAL);
+        // tap b to switch between lateral and angular and hold b to start
+
+          // normal drive control
+          // button to switch display between motor temp, sensor readings, and position log
+          // button to save current coords to screen
+          // coord log should handle coords with labels and 1st points at top and last points at bottom
+          // Ex: Coords 1: (x=12, y=-24, theta=35)
     }
 }

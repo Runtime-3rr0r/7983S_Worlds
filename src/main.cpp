@@ -231,13 +231,13 @@ struct recordingSetup {
   				controlType(controlType)
   				{}
 
-  	void update(std::string name, int value, int lastValue) {
-    	if (value != lastValue) {
-    		if (controlType == MOTOR) fprintf(fileName, name + ".move_voltage(%d);", value);
-            else if (controlType == DIGITAL) fprintf(fileName, name + ".set_value(%d);", value);
-            else fprintf(fileName, name + "=%d;", value);
-    	}
-  	}
+  	void update(const std::string& name, int value, int lastValue) {
+        if (value != lastValue) {
+            if (controlType == MOTOR) fprintf(fileName, "%s.move_voltage(%d);", name.c_str(), value);
+            else if (controlType == DIGITAL) fprintf(fileName, "%s.set_value(%d);", name.c_str(), value);
+            else fprintf(fileName, "%s=%d;", name.c_str(), value);
+        }
+    }
 };
 
 controlSetup intakeFwdControl(MOTOR);

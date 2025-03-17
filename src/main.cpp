@@ -403,7 +403,7 @@ void autonomous(void) {
 
                 continue;
             }
-  
+
             if (spintake == 1) intake.move_voltage(12000);
             else if (spintake == -1) intake.move_voltage(-12000);
             else intake.move_voltage(0);

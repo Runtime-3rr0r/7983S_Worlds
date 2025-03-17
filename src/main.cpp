@@ -240,13 +240,10 @@ struct recordingSetup {
     }
 };
 
-controlSetup intakeFwdControl(MOTOR);
-controlSetup intakeRevControl(MOTOR, false, true);
-controlSetup rightDoinkControl(DIGITAL);
-controlSetup leftDoinkControl(DIGITAL);
-controlSetup clampControl(DIGITAL);
-controlSetup loadStateControl(DIGITAL, true);
-controlSetup scoreStateController(DIGITAL);
+controlSetup motorControl(MOTOR);
+controlSetup motorRevControl(MOTOR, false, true);
+controlSetup digitalControl(DIGITAL);
+controlSetup digitalToggleControl(DIGITAL, true);
 
 recordingSetup varRecorder(recordings, VAR);
 recordingSetup motorRecorder(recordings, MOTOR);
@@ -456,8 +453,8 @@ void opcontrol() {
         }
     
         while (true) {
-            intake.move_voltage(intakeFwdControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R2))
-                                + intakeRevControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_A)));
+            intake.move_voltage(motorControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R2))
+                                + motorRevControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_A)));
     
             rightDoink.set_value(rightDoinkControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R1)));
             leftDoink.set_value(leftDoinkControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_LEFT)));

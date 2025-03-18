@@ -1,3 +1,5 @@
+#include "main.h"
+
 struct ControlSetup {
 
     bool toggle;

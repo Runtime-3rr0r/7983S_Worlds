@@ -36,11 +36,18 @@
 
 #define PROS_USE_LITERALS
 
-#include "api.h"
+#include "api.h" // IWYU pragma: keep
 
 /**
  * You should add more #includes here
  */
+
+#include "lemlib/api.hpp" // IWYU pragma: keep
+#include "lemlib/timer.hpp" // IWYU pragma: keep
+#include "constants.h" // IWYU pragma: keep
+#include "structs.h" // IWYU pragma: keep
+#include <list> // IWYU pragma: keep
+
 
 /**
  * If you find doing pros::Motor() to be tedious and you'd prefer just to do

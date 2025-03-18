@@ -1,22 +1,4 @@
-#include "lemlib/api.hpp" // IWYU pragma: keep
-#include "lemlib/timer.hpp"
 #include "main.h"
-#include <list>
-
-const bool TESTMODE = false;
-const float THRESHOLD = 1;
-const float TUNERATE = 1;
-const int TIMEOUT = 4000;
-const int LATERAL = 0;
-const int ANGULAR = 1;
-const int IDLE = 2000;
-const int LOAD = 4800;
-const int FAR = 22800;
-const int DIGITAL = 0;
-const int MOTOR = 1;
-const int BLUE = -1;
-const int RED = 1;
-const int VAR = 2;
 
 int lastSecondStageVoltage = 0;
 int lastFirstStageVoltage = 0;
@@ -183,59 +165,6 @@ lemlib::Chassis mogoChassis(drivetrain,
 						   &steerCurve
 );
 
-struct ControlSetup {
-
-    bool toggle;
-    bool inverseOutput;
-
-    int state = 0;
-    int outputType;
-    
-    ControlSetup(int outputType,
-                bool toggle = false,
-                bool inverseOutput = false
-                ):
-                outputType(outputType),
-                toggle(toggle),
-                inverseOutput(inverseOutput) 
-                {}
-
-    int use(bool condition) {
-        if (toggle && condition) state = !state;
-        else if (condition) state = true;
-
-        if (outputType == MOTOR && state && inverseOutput) return -12000;
-        else if (outputType == MOTOR && state) return 12000;
-
-        if (outputType == DIGITAL) return state;
-
-        return 0;
-    }
-};
-
-struct RecordingSetup {
-  	int value;
-  	int lastValue;
-  	int controlType;
-  
-  	std::string name;
-  	
-  	FILE* fileName;
-  
-  	RecordingSetup(FILE* fileName,
-  				int controlType)
-  				:
-  				fileName(fileName),
-  				controlType(controlType)
-  				{}
-
-  	void update(const std::string& name, int value, int lastValue) {
-        if (value != lastValue && controlType == MOTOR) fprintf(fileName, "%s.move_voltage(%d);", name.c_str(), value);
-        else if (value != lastValue && controlType == DIGITAL) fprintf(fileName, "%s.set_value(%d);", name.c_str(), value);
-        else if (value != lastValue) fprintf(fileName, "%s=%d;", name.c_str(), value);
-    }
-};
-
 ControlSetup motorControl(MOTOR);
 ControlSetup motorRevControl(MOTOR, false, true);
 ControlSetup digitalControl(DIGITAL);
@@ -361,7 +290,7 @@ void initialize() {
     pros::lcd::register_btn1_cb(selectAuto);
     pros::lcd::register_btn2_cb(nextAuto);
 
-    pros::Task dispayLocation([&]() {
+    pros::Task displayLocation([&]() {
         while (true) {
         
             if (!autoRunning) {

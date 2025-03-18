@@ -1,19 +1,5 @@
 #include "lemlib/api.hpp" // IWYU pragma: keep
-#include "lemlib/chassis/trackingWheel.hpp"
-#include "lemlib/chassis/chassis.hpp"
-#include "pros/motor_group.hpp"
-#include "liblvgl/llemu.hpp"
-#include "pros/rotation.hpp"
-#include "pros/distance.hpp"
 #include "lemlib/timer.hpp"
-#include "pros/optical.hpp"
-#include "pros/motors.hpp"
-#include "lemlib/pid.hpp"
-#include "pros/rtos.hpp"
-#include "pros/misc.hpp"
-#include "pros/adi.hpp"
-#include "pros/imu.hpp"
-#include "pros/misc.h"
 #include "main.h"
 #include <list>
 

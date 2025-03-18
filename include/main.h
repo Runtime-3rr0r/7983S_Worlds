@@ -24,6 +24,7 @@
  * E_CONTROLLER_MASTER is pedantically correct within the PROS styleguide, but
  * not convenient for most student programmers.
  */
+
 #define PROS_USE_SIMPLE_NAMES
 
 /**
@@ -32,6 +33,7 @@
  *
  * For instance, you can do `4_mtr = 50` to set motor 4's target velocity to 50
  */
+
 #define PROS_USE_LITERALS
 
 #include "api.h"
@@ -39,7 +41,27 @@
 /**
  * You should add more #includes here
  */
+
+#include "lemlib/chassis/trackingWheel.hpp"
+#include "lemlib/chassis/chassis.hpp"
+#include "pros/motor_group.hpp"
+#include "liblvgl/llemu.hpp"
+#include "pros/rotation.hpp"
+#include "pros/distance.hpp"
+#include "lemlib/timer.hpp"
+#include "pros/optical.hpp"
+#include "pros/motors.hpp"
+#include "lemlib/pid.hpp"
 #include "lemlib/api.hpp"
+#include "pros/rtos.hpp"
+#include "pros/misc.hpp"
+#include "pros/adi.hpp"
+#include "pros/imu.hpp"
+#include "pros/misc.h"
+#include "classes.hpp"
+#include "config.hpp"
+#include "vars.hpp"
+#include <list>
 
 /**
  * If you find doing pros::Motor() to be tedious and you'd prefer just to do
@@ -49,6 +71,7 @@
  * concurrently! The okapi namespace will export all symbols inside the pros
  * namespace.
  */
+
 // using namespace pros;
 // using namespace pros::literals;
 // using namespace okapi;
@@ -58,6 +81,7 @@
  * that they can be called from user code (i.e. calling autonomous from a
  * button press in opcontrol() for testing purposes).
  */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -71,10 +95,13 @@ void opcontrol(void);
 #endif
 
 #ifdef __cplusplus
+
 /**
  * You can add C++-only headers here
  */
+
 //#include <iostream>
+
 #endif
 
 #endif  // _PROS_MAIN_H_

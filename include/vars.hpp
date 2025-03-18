@@ -1,3 +1,5 @@
+# include <list>
+
 const bool TESTMODE = false;
 const float THRESHOLD = 1;
 const float TUNERATE = 1;

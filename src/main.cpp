@@ -197,7 +197,7 @@ lemlib::Chassis mogoChassis(drivetrain,
 						   &steerCurve
 );
 
-struct controlSetup {
+struct ControlSetup {
 
     bool toggle;
     bool inverseOutput;
@@ -205,7 +205,7 @@ struct controlSetup {
     int state = 0;
     int outputType;
     
-    controlSetup(int outputType,
+    ControlSetup(int outputType,
                 bool toggle = false,
                 bool inverseOutput = false
                 ):
@@ -229,7 +229,7 @@ struct controlSetup {
     }
 };
 
-struct recordingSetup {
+struct RecordingSetup {
   	int value;
   	int lastValue;
   	int controlType;
@@ -238,7 +238,7 @@ struct recordingSetup {
   	
   	FILE* fileName;
   
-  	recordingSetup(FILE* fileName,
+  	RecordingSetup(FILE* fileName,
   				int controlType)
   				:
   				fileName(fileName),
@@ -254,14 +254,14 @@ struct recordingSetup {
     }
 };
 
-controlSetup motorControl(MOTOR);
-controlSetup motorRevControl(MOTOR, false, true);
-controlSetup digitalControl(DIGITAL);
-controlSetup digitalToggleControl(DIGITAL, true);
+ControlSetup motorControl(MOTOR);
+ControlSetup motorRevControl(MOTOR, false, true);
+ControlSetup digitalControl(DIGITAL);
+ControlSetup digitalToggleControl(DIGITAL, true);
 
-recordingSetup varRecorder(recordings, VAR);
-recordingSetup motorRecorder(recordings, MOTOR);
-recordingSetup digitalRecorder(recordings, DIGITAL);
+RecordingSetup varRecorder(recordings, VAR);
+RecordingSetup motorRecorder(recordings, MOTOR);
+RecordingSetup digitalRecorder(recordings, DIGITAL);
 
 std::string tunePID(bool tuneType = LATERAL) {
 
@@ -363,6 +363,14 @@ void nextAuto() {
     ++autoNum;
 }
 
+void nextScreen() {
+    currentScreen = (currentScreen + 1) % 3;
+}
+
+void prevScreen() {
+    currentScreen = (currentScreen + 2) % 3;
+}
+
 void initialize() {
     pros::lcd::initialize();
     ctrl.clear();
@@ -422,7 +430,11 @@ void initialize() {
     });
 }
 
-void skills() {}
+void skills() {
+    // setup
+    allyColor = RED;
+    chassis.setPose(0, 0, 135);
+}
 
 void redRingSide() {
     // setup
@@ -514,7 +526,7 @@ void autonomous(void) {
                 intake.move_voltage(-12000);
 
                 continue;
-            } else if (colorReading < 140 && colorReading >= 340 && autoNum % 2 != 0) {
+            } else if (colorReading < 140 && colorReading >= 340 && autoNum % 2 != 0 || autoNum == 0) {
                 while (secondStageIntake.get_position() < 0.370) {
                     intake.move_voltage(12000);
                 }
@@ -569,6 +581,8 @@ void autonomous(void) {
 
 void opcontrol() {
     autoRunning = false;
+    pros::lcd::register_btn0_cb(prevScreen);
+    pros::lcd::register_btn1_cb(nextScreen);
     
     lemlib::Timer posProtected(31000);
 

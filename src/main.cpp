@@ -29,6 +29,9 @@ const int LOAD = 4800;
 const int SCORE = 16000;
 const int FAR = 22800;
 const bool TESTMODE = false;
+const float TUNERATE = 1;
+const float THRESHOLD = 1;
+const int TIMEOUT = 4000;
 
 int tuneType = 0;
 int leftY;
@@ -44,6 +47,9 @@ int lastSecondStageVoltage = 0;
 int holdCount = 0;
 int currentScreen = 0;
 int coordLogItem = 0;
+int movementStartTime = 0;
+int movementTime = 0;
+int movement = 0;
 
 bool lastLeftDoink = false;
 bool lastRightDoink = false;
@@ -57,7 +63,7 @@ bool recording = false;
 bool lastLoadState = false;
 bool lastScoreState = false;
 bool fileOpen = false;
-bool controllerCoords = true;
+bool movementStarted = false;
 
 float ladybrownErr = 0;
 float lastWrite = 0;
@@ -262,10 +268,7 @@ recordingSetup varRecorder(recordings, VAR);
 recordingSetup motorRecorder(recordings, MOTOR);
 recordingSetup digitalRecorder(recordings, DIGITAL);
 
-std::string tunePID(bool tuneType = LATERAL,
-                    const float tuneRate = 1,
-                    const float overshootThreshold = 1,
-                    const int timeout = 4000) {
+std::string tunePID(bool tuneType = LATERAL) {
 
     const int start_time = pros::millis();
 
@@ -293,7 +296,7 @@ std::string tunePID(bool tuneType = LATERAL,
     lemlib::PID movementPID(kP, 0, kD);
 
     while (tunerEnabled) {
-        while (error != 0 || pros::millis() - start_time < timeout) {
+        while (error != 0 || pros::millis() - start_time < TIMEOUT) {
 
             if (ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_B)) {
                 tunerEnabled = false;
@@ -321,12 +324,12 @@ std::string tunePID(bool tuneType = LATERAL,
             kP = lastKP;
             kD = lastKD;
         } else {
-            if (overshootDistance > overshootThreshold) {
-                kD += tuneRate * overshootDistance;
+            if (overshootDistance > THRESHOLD) {
+                kD += TUNERATE * overshootDistance;
                 restoreAvailable = true;
                 restoreCount += 1;
             } else {
-                kP += tuneRate;
+                kP += TUNERATE;
                 restoreAvailable = false;
                 restoreCount = 0;
             }
@@ -336,6 +339,9 @@ std::string tunePID(bool tuneType = LATERAL,
         else if (kP == lastKP && kD == lastKD) consistencyCount += 1;
 
         lemlib::PID movementPID(kP, 0, kD);
+        displayKP = std::to_string(kP);
+        displayKD = std::to_string(kD);
+        displayLowestOvershoot = std::to_string(lowestOvershoot);
         data = displayKP + ", " + displayKD + ", " + displayLowestOvershoot;
         lastKP = kP;
         lastKD = kD;
@@ -366,7 +372,7 @@ void initialize() {
     pros::lcd::initialize();
     ctrl.clear();
     chassis.calibrate();
-    chassis.setPose(0, 0, -1);
+    chassis.setPose(0, 0, 0);
 
     pros::lcd::register_btn0_cb(prevAuto);
     pros::lcd::register_btn1_cb(selectAuto);
@@ -374,12 +380,14 @@ void initialize() {
 
     pros::Task dispayLocation([&]() {
         while (true) {
-         
-            pros::lcd::print(0, "X: %f", chassis.getPose().x);
-            pros::lcd::print(1, "Y: %f", chassis.getPose().y);
-            pros::lcd::print(2, "Theta: %f", chassis.getPose().theta);
+        
+            if (!autoRunning) {
+                pros::lcd::print(0, "X: %f", chassis.getPose().x);
+                pros::lcd::print(1, "Y: %f", chassis.getPose().y);
+                pros::lcd::print(2, "Theta: %f", chassis.getPose().theta);    
+            }
             
-            if (controllerCoords) {
+            if (!recording) {
                 ctrl.print(1, 0, "X: %f", chassis.getPose().x);
                 ctrl.print(2, 0, "Y: %f", chassis.getPose().y);
                 ctrl.print(3, 0, "Theta: %f", chassis.getPose().theta);
@@ -427,12 +435,13 @@ void redRingSide() {
     chassis.setPose(0, 0, 135);
 
     // ally stake
-    ladybrown.move_voltage(12000);
+    ladybrown_target = FAR;
     pros::delay(1000);
 
     // clear ally stake
     chassis.moveToPose(-6, 12, 135, 750, {.forwards=false});
-    ladybrown.move_voltage(-12000);
+    ladybrown_target = IDLE;
+    pros::delay(500);
 
     // get ally stake ring
 
@@ -478,7 +487,25 @@ void blueGoalSide() {
 }
 
 void autonomous(void) {
+    pros::lcd::clear();
     autoRunning = true;
+
+    pros::Task movementTimer([&](){
+        while (autoRunning) {
+            while (chassis.isInMotion() || mogoChassis.isInMotion()) {
+                movementTime = pros::millis() - movementStartTime;
+                movementStarted = true;
+                pros::delay(20);
+            }
+
+            if (movementStarted) {
+                pros::lcd::print(movement, "Move Time: %f", movementTime);
+                movement += 1;
+                movementStarted = false;
+            }
+            pros::delay(20);
+        }
+    });
 
     pros::Task colorSort([&]() {
         while (autoRunning) {
@@ -486,12 +513,16 @@ void autonomous(void) {
             secondStageIntake.set_zero_position(0);
 
             if (colorReading > 140 && colorReading <= 340 && autoNum % 2 == 0) {
-                while (secondStageIntake.get_position() < 0.370) intake.move_voltage(12000);
+                while (secondStageIntake.get_position() < 0.370) {
+                    intake.move_voltage(12000);
+                }
                 intake.move_voltage(-12000);
 
                 continue;
             } else if (colorReading < 140 && colorReading >= 340 && autoNum % 2 != 0) {
-                while (secondStageIntake.get_position() < 0.370) intake.move_voltage(12000);
+                while (secondStageIntake.get_position() < 0.370) {
+                    intake.move_voltage(12000);
+                }
                 intake.move_voltage(-12000);
 
                 continue;
@@ -575,11 +606,9 @@ void opcontrol() {
             ctrl.rumble("**");
             
             if (recording && !fileOpen) {
-                controllerCoords = false;
                 recordings = fopen("/usd/recording.txt", "a");
                 fileOpen = true;
             } else if (!recording && fileOpen) {
-                controllerCoords = true;
                 fclose(recordings);
                 fileOpen = false;
             }

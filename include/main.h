@@ -61,7 +61,6 @@
 #include "classes.hpp"
 #include "config.hpp"
 #include "vars.hpp"
-#include <list>
 
 /**
  * If you find doing pros::Motor() to be tedious and you'd prefer just to do

@@ -1,94 +1,85 @@
-#include "main.h"
+#include "lemlib/api.hpp" // IWYU pragma: keep
 #include "lemlib/chassis/trackingWheel.hpp"
 #include "lemlib/chassis/chassis.hpp"
-#include "lemlib/api.hpp" // IWYU pragma: keep
-#include "lemlib/pid.hpp"
-#include "liblvgl/llemu.hpp"
 #include "pros/motor_group.hpp"
+#include "liblvgl/llemu.hpp"
 #include "pros/rotation.hpp"
 #include "pros/distance.hpp"
 #include "lemlib/timer.hpp"
 #include "pros/optical.hpp"
 #include "pros/motors.hpp"
+#include "lemlib/pid.hpp"
 #include "pros/rtos.hpp"
 #include "pros/misc.hpp"
 #include "pros/adi.hpp"
 #include "pros/imu.hpp"
 #include "pros/misc.h"
+#include "main.h"
 #include <list>
 
-const int RED = 1;
-const int BLUE = -1;
-const int MOTOR = 1;
-const int DIGITAL = 0;
-const int VAR = 2;
+const bool TESTMODE = false;
+const float THRESHOLD = 1;
+const float TUNERATE = 1;
+const int TIMEOUT = 4000;
 const int LATERAL = 0;
 const int ANGULAR = 1;
 const int IDLE = 2000;
 const int LOAD = 4800;
-const int SCORE = 16000;
 const int FAR = 22800;
-const bool TESTMODE = false;
-const float TUNERATE = 1;
-const float THRESHOLD = 1;
-const int TIMEOUT = 4000;
+const int DIGITAL = 0;
+const int MOTOR = 1;
+const int BLUE = -1;
+const int RED = 1;
+const int VAR = 2;
 
-int tuneType = 0;
-int leftY;
-int rightX;
-int autoNum = 0;
-int allyColor = 0;
-int spintake = 0;
-int ladybrown_target = 0;
-int lastLeftY = 0;
-int lastRightX = 0;
-int lastFirstStageVoltage = 0;
 int lastSecondStageVoltage = 0;
-int holdCount = 0;
+int lastFirstStageVoltage = 0;
+int movementStartTime = 0;
+int ladybrown_target = 0;
 int currentScreen = 0;
 int coordLogItem = 0;
-int movementStartTime = 0;
 int movementTime = 0;
+int colorReading = 0;
+int lastRightX = 0;
+int allyColor = 0;
+int lastLeftY = 0;
+int holdCount = 0;
+int lastWrite = 0;
+int tuneType = 0;
+int spintake = 0;
 int movement = 0;
+int autoNum = 0;
+int rightX;
+int leftY;
 
-bool lastLeftDoink = false;
-bool lastRightDoink = false;
-bool lastClamp = false;
-bool lastIntakeLift = false;
-bool selecting = true;
-bool loadState = false;
-bool scoreState = false;
-bool autoRunning = false;
-bool recording = false;
-bool lastLoadState = false;
-bool lastScoreState = false;
-bool fileOpen = false;
 bool movementStarted = false;
-
-float ladybrownErr = 0;
-float lastWrite = 0;
-float colorReading = 0;
-
-std::list<std::string> coordLog;
-std::string coordLogEntry;
-
-FILE* recordings = nullptr;
+bool lastScoreState = false;
+bool lastRightDoink = false;
+bool lastIntakeLift = false;
+bool lastLoadState = false;
+bool lastLeftDoink = false;
+bool autoRunning = false;
+bool scoreState = false;
+bool lastClamp = false;
+bool loadState = false;
+bool recording = false;
+bool selecting = true;
+bool fileOpen = false;
 
 pros::Controller ctrl(pros::E_CONTROLLER_MASTER);
 
-pros::Motor firstStageIntake(9, pros::MotorGearset::green);
-pros::Motor secondStageIntake(1, pros::MotorGearset::blue);
-
-pros::Motor ladybrown(-10, pros::MotorGearset::green);
+pros::adi::Pneumatics rightDoink = pros::adi::Pneumatics(7, false);
+pros::adi::Pneumatics intakeLift = pros::adi::Pneumatics(3, false);
+pros::adi::Pneumatics leftDoink = pros::adi::Pneumatics(4, false);
+pros::adi::Pneumatics clamp = pros::adi::Pneumatics(8, false);
 
 pros::MotorGroup leftDrive({-18, -19, 20}, pros::MotorGearset::blue);
 pros::MotorGroup rightDrive({12, 13, -14}, pros::MotorGearset::blue);
 pros::MotorGroup intake({9, 1});
 
-pros::adi::Pneumatics rightDoink = pros::adi::Pneumatics(7, false);
-pros::adi::Pneumatics leftDoink = pros::adi::Pneumatics(4, false);
-pros::adi::Pneumatics intakeLift = pros::adi::Pneumatics(3, false);
-pros::adi::Pneumatics clamp = pros::adi::Pneumatics(8, false);
+pros::Motor firstStageIntake(9, pros::MotorGearset::green);
+pros::Motor secondStageIntake(1, pros::MotorGearset::blue);
+pros::Motor ladybrown(-10, pros::MotorGearset::green);
 
 pros::Rotation horizontalEncoder(17);
 pros::Rotation verticalEncoder(-15);
@@ -101,6 +92,10 @@ pros::Distance yDistance(5);
 pros::Optical colorSensor(3);
 
 pros::Imu imu(2);
+
+std::list<std::string> coordLog;
+FILE* recordings = nullptr;
+std::string coordLogEntry;
 
 lemlib::TrackingWheel horizontalTracker(&horizontalEncoder,
 										lemlib::Omniwheel::NEW_2,
@@ -124,7 +119,7 @@ lemlib::OdomSensors odom(&verticalTracker,
 						nullptr,
 						&horizontalTracker,
 						nullptr,
-						&imu      
+						&imu
 );
 
 lemlib::PID ladybrownPID(0.04,
@@ -595,8 +590,8 @@ void opcontrol() {
         scoreState = digitalControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L1));
         clamp.set_value(digitalControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L2)));
 
-        leftY = ctrl.get_analog(ANALOG_LEFT_Y);
-        rightX = ctrl.get_analog(ANALOG_RIGHT_X);
+        leftY = ctrl.get_analog(pros::E_CONTROLLER_ANALOG_LEFT_Y);
+        rightX = ctrl.get_analog(pros::E_CONTROLLER_ANALOG_RIGHT_X);
         chassis.arcade(leftY, rightX, false, 0.75);
 
         if (posProtected.isDone()) ctrl.rumble("*-*");
@@ -627,7 +622,7 @@ void opcontrol() {
             digitalRecorder.update("clamp", clamp.is_extended(), lastClamp);
             digitalRecorder.update("intakeLift", intakeLift.is_extended(), lastIntakeLift);
     
-            fprintf(recordings, "pros::delay(%f);\n", pros::millis() - lastWrite);
+            fprintf(recordings, "pros::delay(%d);\n", pros::millis() - lastWrite);
             lastWrite = pros::millis();
         }
         

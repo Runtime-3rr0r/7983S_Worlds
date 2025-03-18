@@ -42,26 +42,6 @@
  * You should add more #includes here
  */
 
-#include "lemlib/chassis/trackingWheel.hpp"
-#include "lemlib/chassis/chassis.hpp"
-#include "pros/motor_group.hpp"
-#include "liblvgl/llemu.hpp"
-#include "pros/rotation.hpp"
-#include "pros/distance.hpp"
-#include "lemlib/timer.hpp"
-#include "pros/optical.hpp"
-#include "pros/motors.hpp"
-#include "lemlib/pid.hpp"
-#include "lemlib/api.hpp"
-#include "pros/rtos.hpp"
-#include "pros/misc.hpp"
-#include "pros/adi.hpp"
-#include "pros/imu.hpp"
-#include "pros/misc.h"
-#include "classes.hpp"
-#include "config.hpp"
-#include "vars.hpp"
-
 /**
  * If you find doing pros::Motor() to be tedious and you'd prefer just to do
  * Motor, you can use the namespace with the following commented out line.

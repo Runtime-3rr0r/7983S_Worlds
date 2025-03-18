@@ -218,7 +218,7 @@ struct ControlSetup {
         if (toggle && condition) state = !state;
         else if (condition) state = true;
 
-        if (outputType == MOTOR && state && inverseOutput) return -12000
+        if (outputType == MOTOR && state && inverseOutput) return -12000;
         else if (outputType == MOTOR && state) return 12000;
 
         if (outputType == DIGITAL) return state;

@@ -3,6 +3,7 @@
 #include "lemlib/chassis/chassis.hpp"
 #include "lemlib/api.hpp" // IWYU pragma: keep
 #include "lemlib/pid.hpp"
+#include "liblvgl/llemu.hpp"
 #include "pros/motor_group.hpp"
 #include "pros/rotation.hpp"
 #include "pros/distance.hpp"
@@ -14,18 +15,22 @@
 #include "pros/adi.hpp"
 #include "pros/imu.hpp"
 #include "pros/misc.h"
+#include <list>
 
 const int RED = 1;
 const int BLUE = -1;
 const int MOTOR = 1;
 const int DIGITAL = 0;
 const int VAR = 2;
+const int LATERAL = 0;
+const int ANGULAR = 1;
 const int IDLE = 2000;
 const int LOAD = 4800;
 const int SCORE = 16000;
 const int FAR = 22800;
 const bool TESTMODE = false;
 
+int tuneType = 0;
 int leftY;
 int rightX;
 int autoNum = 0;
@@ -36,6 +41,9 @@ int lastLeftY = 0;
 int lastRightX = 0;
 int lastFirstStageVoltage = 0;
 int lastSecondStageVoltage = 0;
+int holdCount = 0;
+int currentScreen = 0;
+int coordLogItem = 0;
 
 bool lastLeftDoink = false;
 bool lastRightDoink = false;
@@ -48,10 +56,15 @@ bool autoRunning = false;
 bool recording = false;
 bool lastLoadState = false;
 bool lastScoreState = false;
+bool fileOpen = false;
+bool controllerCoords = true;
 
 float ladybrownErr = 0;
 float lastWrite = 0;
 float colorReading = 0;
+
+std::list<std::string> coordLog;
+std::string coordLogEntry;
 
 FILE* recordings = nullptr;
 
@@ -249,6 +262,94 @@ recordingSetup varRecorder(recordings, VAR);
 recordingSetup motorRecorder(recordings, MOTOR);
 recordingSetup digitalRecorder(recordings, DIGITAL);
 
+std::string tunePID(bool tuneType = LATERAL,
+                    const float tuneRate = 1,
+                    const float overshootThreshold = 1,
+                    const int timeout = 4000) {
+
+    const int start_time = pros::millis();
+
+    float kP = 0.01;
+    float kD = 0;
+    float lastKP = 0.01;
+    float lastKD = 0;
+    float error = 10;
+    float overshootDistance = 0;
+    float lowestOvershoot = 1000;
+    float lateralTarget = 24 / (2 * M_PI / 360) * 100;
+
+    std::string displayKP = std::to_string(kP);
+    std::string displayKD = std::to_string(kD);
+    std::string displayLowestOvershoot = std::to_string(lowestOvershoot);
+    std::string data = displayKP + ", " + displayKD + ", " + displayLowestOvershoot;
+
+    int restoreCount = 0;
+    int consistencyCount = 0;
+    int angularTarget = 90;
+
+    bool restoreAvailable = false;
+    bool tunerEnabled = true;
+
+    lemlib::PID movementPID(kP, 0, kD);
+
+    while (tunerEnabled) {
+        while (error != 0 || pros::millis() - start_time < timeout) {
+
+            if (ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_B)) {
+                tunerEnabled = false;
+            }
+
+            if (tuneType == LATERAL) {
+                error = lateralTarget - verticalEncoder.get_position();
+                rightDrive.move(-movementPID.update(error));
+                leftDrive.move(movementPID.update(error));
+
+                if (error < 0 && lateralTarget > 0) error += overshootDistance;
+            } else {
+                error = lateralTarget - imu.get_rotation();
+                rightDrive.move(movementPID.update(error));
+                leftDrive.move(movementPID.update(error));
+
+                if (error < 0 && lateralTarget > 0) error += overshootDistance;
+            }
+            pros::delay(20);
+        }
+
+        if (overshootDistance < lowestOvershoot) overshootDistance = lowestOvershoot;
+
+        if (overshootDistance > lowestOvershoot && restoreAvailable) {
+            kP = lastKP;
+            kD = lastKD;
+        } else {
+            if (overshootDistance > overshootThreshold) {
+                kD += tuneRate * overshootDistance;
+                restoreAvailable = true;
+                restoreCount += 1;
+            } else {
+                kP += tuneRate;
+                restoreAvailable = false;
+                restoreCount = 0;
+            }
+        }
+
+        if (consistencyCount == 5) return data;
+        else if (kP == lastKP && kD == lastKD) consistencyCount += 1;
+
+        lemlib::PID movementPID(kP, 0, kD);
+        data = displayKP + ", " + displayKD + ", " + displayLowestOvershoot;
+        lastKP = kP;
+        lastKD = kD;
+
+        overshootDistance = 0;
+        error = 10;
+        lateralTarget *= -1;
+        angularTarget *= -1;
+        verticalEncoder.reset_position();
+        imu.reset(true);
+    }
+    return data;
+}
+
 void prevAuto() {
     --autoNum;
 }
@@ -278,10 +379,12 @@ void initialize() {
             pros::lcd::print(1, "Y: %f", chassis.getPose().y);
             pros::lcd::print(2, "Theta: %f", chassis.getPose().theta);
             
-            ctrl.print(1, 0, "X: %f", chassis.getPose().x);
-            ctrl.print(2, 0, "Y: %f", chassis.getPose().y);
-            ctrl.print(3, 0, "Theta: %f", chassis.getPose().theta);
-
+            if (controllerCoords) {
+                ctrl.print(1, 0, "X: %f", chassis.getPose().x);
+                ctrl.print(2, 0, "Y: %f", chassis.getPose().y);
+                ctrl.print(3, 0, "Theta: %f", chassis.getPose().theta);
+            }
+            
             lemlib::telemetrySink()->info("Chassis pose: {}", chassis.getPose());
            
             pros::delay(20);
@@ -393,7 +496,7 @@ void autonomous(void) {
 
                 continue;
             }
-
+  
             if (spintake == 1) intake.move_voltage(12000);
             else if (spintake == -1) intake.move_voltage(-12000);
             else intake.move_voltage(0);
@@ -441,42 +544,48 @@ void autonomous(void) {
 void opcontrol() {
     autoRunning = false;
     
-    if (!TESTMODE) {
-        lemlib::Timer posProtected(31000);
-    
-        if (recording) {
-            recordings = fopen("/usd/recording.txt", "a");
-            fprintf(recordings, "");
-            fprintf(recordings, "pros::Task ladybrownMove([&](){");
-            fprintf(recordings, "while(!autoRunning){if(scoreState)ladybrown_target=FAR;else if(loadState)ladybrown_target=LOAD;else ladybrown_target=IDLE;");
-            fprintf(recordings, "ladybrown.move_voltage(ladybrownPID.update(ladybrown_target-ladybrownPos.get_position()));pros::delay(20);}});\n");
-        }
-    
-        while (true) {
-            intake.move_voltage(motorControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R2))
-                                + motorRevControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_A)));
-    
-            rightDoink.set_value(digitalControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R1)));
-            leftDoink.set_value(digitalControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_LEFT)));
-            loadState = digitalToggleControl.use(ctrl.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_DOWN));
-            scoreState = digitalControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L1));
-            clamp.set_value(digitalControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L2)));
-    
-            leftY = ctrl.get_analog(ANALOG_LEFT_Y);
-            rightX = ctrl.get_analog(ANALOG_RIGHT_X);
-            chassis.arcade(leftY, rightX, false, 0.75);
-    
-            if (posProtected.isDone()) ctrl.rumble("**");
-    
-            pros::delay(20);
-    
-            if (!recording) continue;
-    
-            if (ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_X)) {
-                recording = false;
+    lemlib::Timer posProtected(31000);
+
+    if (recording) {
+        recordings = fopen("/usd/recording.txt", "a");
+        fprintf(recordings, "");
+        fprintf(recordings, "pros::Task ladybrownMove([&](){");
+        fprintf(recordings, "while(!autoRunning){if(scoreState)ladybrown_target=FAR;else if(loadState)ladybrown_target=LOAD;else ladybrown_target=IDLE;");
+        fprintf(recordings, "ladybrown.move_voltage(ladybrownPID.update(ladybrown_target-ladybrownPos.get_position()));pros::delay(20);}});\n");
+    }
+
+    while (true) {
+        intake.move_voltage(motorControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R2))
+                            + motorRevControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_A)));
+
+        rightDoink.set_value(digitalControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_R1)));
+        leftDoink.set_value(digitalControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_LEFT)));
+        loadState = digitalToggleControl.use(ctrl.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_DOWN));
+        scoreState = digitalControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L1));
+        clamp.set_value(digitalControl.use(ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_L2)));
+
+        leftY = ctrl.get_analog(ANALOG_LEFT_Y);
+        rightX = ctrl.get_analog(ANALOG_RIGHT_X);
+        chassis.arcade(leftY, rightX, false, 0.75);
+
+        if (posProtected.isDone()) ctrl.rumble("*-*");
+
+        if (ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_X)) {
+            recording = !recording;
+            ctrl.rumble("**");
+            
+            if (recording && !fileOpen) {
+                controllerCoords = false;
+                recordings = fopen("/usd/recording.txt", "a");
+                fileOpen = true;
+            } else if (!recording && fileOpen) {
+                controllerCoords = true;
                 fclose(recordings);
+                fileOpen = false;
             }
-    
+        }
+
+        if (recording) {
             varRecorder.update("leftY", leftY, lastLeftY);
             varRecorder.update("rightX", rightX, lastRightX);
             fprintf(recordings, "chassis.arcade(leftY, rightX, false, 0.75);");
@@ -492,15 +601,67 @@ void opcontrol() {
             fprintf(recordings, "pros::delay(%f);\n", pros::millis() - lastWrite);
             lastWrite = pros::millis();
         }
-    } else {
-        // button for turning robot a chosen distance
-        // button for driving robot  a chosen distance
-        // button for colorsort testing
-        // normal drive control
-        // buttons to switch display between motor temp, sensor readings, and position log
-        // button to save current coords to screen
-        // coord log should log coords with label with 1st points at top and last points at bottom
-        // Ex: Coords 1: (x=12, y=-24, theta=35)
-        // button for PID tuner
+        
+        pros::delay(20);
+
+        if (!TESTMODE) continue;
+
+        if (ctrl.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_B)) {
+            ctrl.clear();
+            if (tuneType == LATERAL) ctrl.print(1, 0, "PID Tuner: Lateral");
+            else ctrl.print(1, 0, "PID Tuner: Angular");
+            
+            holdCount = 0;
+
+            while (ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_B) && holdCount < 500) {
+                holdCount += 20;
+                pros::delay(20);
+            }
+            
+            if (holdCount >= 500) ctrl.print(2, 0, "%s", tunePID(tuneType));
+            else tuneType = !tuneType;
+        }
+
+        if (ctrl.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_Y)) currentScreen = (currentScreen + 1) % 3;
+
+        if (currentScreen == 0) {
+            pros::lcd::clear();
+            pros::lcd::print(0, "Motor Temps:");
+            pros::lcd::print(2, "First Stage: %f", firstStageIntake.get_temperature());
+            pros::lcd::print(3, "Second Stage: %f", secondStageIntake.get_temperature());
+            pros::lcd::print(4, "Ladybrown: %f", ladybrown.get_temperature());
+            pros::lcd::print(5, "Left Drive: %f", leftDrive.get_temperature());
+            pros::lcd::print(6, "Right Drive: %f", rightDrive.get_temperature());
+        } else if (currentScreen == 1) {
+            pros::lcd::clear();
+            pros::lcd::print(0, "Sensor Readings:");
+            pros::lcd::print(2, "Color Sensor: %f", colorSensor.get_hue());
+            pros::lcd::print(3, "Clamp Distance: %f", clampDistance.get_distance());
+            pros::lcd::print(4, "X Distance: %f", xDistance.get_distance());
+            pros::lcd::print(5, "Y Distance: %f", yDistance.get_distance());
+            pros::lcd::print(6, "Ladybrown Position: %f", ladybrownPos.get_position());
+            pros::lcd::print(7, "Horizontal Encoder: %f", horizontalEncoder.get_position());
+            pros::lcd::print(8, "Vertical Encoder: %f", verticalEncoder.get_position());
+        } else {
+            pros::lcd::clear();
+            pros::lcd::print(0, "Coord Log:");
+
+            if (ctrl.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_RIGHT)) coordLogItem = (coordLogItem + 1) % coordLog.size();
+
+            int line = 2;
+            auto it = coordLog.begin();
+            std::advance(it, coordLogItem);
+
+            for (int i = 0; i < 10 && it != coordLog.end(); ++i, ++it, ++line) pros::lcd::print(line, "%s", it->c_str());
+        }
+
+        if (ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_UP)) {
+            coordLogItem = coordLog.size();
+            coordLogEntry = std::to_string(coordLogItem)
+                            + "x: " + std::to_string(chassis.getPose().x) + ", "
+                            + "y: " + std::to_string(chassis.getPose().y) + ", "
+                            + "theta: " + std::to_string(chassis.getPose().theta);
+            coordLog.push_back(coordLogEntry);
+        }
     }
 }

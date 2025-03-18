@@ -1,3 +1,5 @@
+#include "main.h"
+
 std::string tunePID(bool tuneType = LATERAL) {
 
     const int start_time = pros::millis();

@@ -1,3 +1,5 @@
+#include "main.h"
+
 pros::Controller ctrl(pros::E_CONTROLLER_MASTER);
 
 pros::adi::Pneumatics rightDoink = pros::adi::Pneumatics(7, false);

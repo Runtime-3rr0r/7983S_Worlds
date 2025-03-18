@@ -218,10 +218,8 @@ struct ControlSetup {
         if (toggle && condition) state = !state;
         else if (condition) state = true;
 
-        if (outputType == MOTOR) {
-            if (state && inverseOutput) return -12000;
-            else if (state) return 12000;
-        }
+        if (outputType == MOTOR && state && inverseOutput) return -12000
+        else if (outputType == MOTOR && state) return 12000;
 
         if (outputType == DIGITAL) return state;
 
@@ -246,11 +244,9 @@ struct RecordingSetup {
   				{}
 
   	void update(const std::string& name, int value, int lastValue) {
-        if (value != lastValue) {
-            if (controlType == MOTOR) fprintf(fileName, "%s.move_voltage(%d);", name.c_str(), value);
-            else if (controlType == DIGITAL) fprintf(fileName, "%s.set_value(%d);", name.c_str(), value);
-            else fprintf(fileName, "%s=%d;", name.c_str(), value);
-        }
+        if (value != lastValue && controlType == MOTOR) fprintf(fileName, "%s.move_voltage(%d);", name.c_str(), value);
+        else if (value != lastValue && controlType == DIGITAL) fprintf(fileName, "%s.set_value(%d);", name.c_str(), value);
+        else if (value != lastValue) fprintf(fileName, "%s=%d;", name.c_str(), value);
     }
 };
 
@@ -293,9 +289,7 @@ std::string tunePID(bool tuneType = LATERAL) {
     while (tunerEnabled) {
         while (error != 0 || pros::millis() - start_time < TIMEOUT) {
 
-            if (ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_B)) {
-                tunerEnabled = false;
-            }
+            if (ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_B)) tunerEnabled = false;
 
             if (tuneType == LATERAL) {
                 error = lateralTarget - verticalEncoder.get_position();
@@ -520,18 +514,12 @@ void autonomous(void) {
             secondStageIntake.set_zero_position(0);
 
             if (colorReading > 140 && colorReading <= 340 && autoNum % 2 == 0) {
-                while (secondStageIntake.get_position() < 0.370) {
-                    intake.move_voltage(12000);
-                }
+                while (secondStageIntake.get_position() < 0.370) intake.move_voltage(12000);
                 intake.move_voltage(-12000);
-
                 continue;
             } else if (colorReading < 140 && colorReading >= 340 && autoNum % 2 != 0 || autoNum == 0) {
-                while (secondStageIntake.get_position() < 0.370) {
-                    intake.move_voltage(12000);
-                }
+                while (secondStageIntake.get_position() < 0.370) intake.move_voltage(12000);
                 intake.move_voltage(-12000);
-
                 continue;
             }
   

@@ -24,3 +24,103 @@ pros::Distance yDistance(5);
 pros::Optical colorSensor(3);
 
 pros::Imu imu(2);
+
+lemlib::TrackingWheel horizontalTracker(&horizontalEncoder,
+										lemlib::Omniwheel::NEW_2,
+										-5
+);
+
+lemlib::TrackingWheel verticalTracker(&verticalEncoder,
+									lemlib::Omniwheel::NEW_2,
+									5            
+);
+
+lemlib::Drivetrain drivetrain(&leftDrive,
+                             &rightDrive,
+                             10.63,
+                             lemlib::Omniwheel::NEW_325,
+                             450,
+                             2      
+);
+
+lemlib::OdomSensors odom(&verticalTracker,
+						nullptr,
+						&horizontalTracker,
+						nullptr,
+						&imu
+);
+
+lemlib::PID ladybrownPID(0.04,
+                        0,
+                        0.05
+);
+
+lemlib::ControllerSettings lateralPID(22,
+									0,
+									45,
+									0,
+									1,
+									100,
+									3,
+									500,
+									127
+);
+
+lemlib::ControllerSettings angularPID(2,
+									0,
+									10,
+									0,
+									0,
+									0,
+									0,
+									0,
+									127
+);
+
+lemlib::ControllerSettings lateralMogoPID(22,
+										0,
+										45,
+										0,
+										1,
+										100,
+										3,
+										500,
+										127
+);
+
+lemlib::ControllerSettings angularMogoPID(2,
+										0,
+										10,
+										0,
+										0,
+										0,
+										0,
+										0,
+										127
+);
+
+lemlib::ExpoDriveCurve throttleCurve(3,
+                                     10,
+                                     1.019
+);
+
+lemlib::ExpoDriveCurve steerCurve(3,
+                                  10,
+                                  1.019
+);
+
+lemlib::Chassis chassis(drivetrain,
+                       lateralPID,
+                       angularPID,
+                       odom,
+                       &throttleCurve,
+                       &steerCurve
+);
+
+lemlib::Chassis mogoChassis(drivetrain,
+						   lateralMogoPID,
+						   angularMogoPID,
+						   odom,
+						   &throttleCurve,
+						   &steerCurve
+);

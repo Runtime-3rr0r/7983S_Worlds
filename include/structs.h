@@ -1,6 +1,29 @@
 #include "constants.h"
 #include <string>
 
+struct ScreenSetup{
+
+    int prevAuto(int autoNum) {
+        return --autoNum;
+    }
+    
+    bool selectAuto() {
+        return false;
+    }
+    
+    int nextAuto(int autoNum) {
+        return ++autoNum;
+    }
+    
+    int nextScreen(int currentScreen) {
+        return (currentScreen + 1) % 3;
+    }
+    
+    int prevScreen(int currentScreen) {
+        return (currentScreen + 2) % 3;
+    }
+};
+
 struct ControlSetup {
 
     bool toggle;

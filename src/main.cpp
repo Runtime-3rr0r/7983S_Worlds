@@ -3,11 +3,10 @@
 int lastSecondStageVoltage = 0;
 int lastFirstStageVoltage = 0;
 int movementStartTime = 0;
-int ladybrown_target = 0;
+int ladybrownTarget = 0;
 int currentScreen = 0;
 int coordLogItem = 0;
 int movementTime = 0;
-int colorReading = 0;
 int lastRightX = 0;
 int allyColor = 0;
 int lastLeftY = 0;
@@ -20,19 +19,15 @@ int autoNum = 0;
 int rightX;
 int leftY;
 
-bool movementStarted = false;
 bool lastScoreState = false;
 bool lastRightDoink = false;
 bool lastIntakeLift = false;
 bool lastLoadState = false;
 bool lastLeftDoink = false;
-bool autoRunning = false;
 bool scoreState = false;
 bool lastClamp = false;
 bool loadState = false;
-bool recording = false;
 bool selecting = true;
-bool fileOpen = false;
 
 pros::Controller ctrl(pros::E_CONTROLLER_MASTER);
 
@@ -174,6 +169,8 @@ RecordingSetup varRecorder(recordings, VAR);
 RecordingSetup motorRecorder(recordings, MOTOR);
 RecordingSetup digitalRecorder(recordings, DIGITAL);
 
+ScreenSetup menu();
+
 std::string tunePID(bool tuneType = LATERAL) {
 
     const int start_time = pros::millis();
@@ -260,25 +257,8 @@ std::string tunePID(bool tuneType = LATERAL) {
     return data;
 }
 
-void prevAuto() {
-    --autoNum;
-}
-
-void selectAuto() {
-    selecting = false;
-}
-
-void nextAuto() {
-    ++autoNum;
-}
-
-void nextScreen() {
-    currentScreen = (currentScreen + 1) % 3;
-}
-
-void prevScreen() {
-    currentScreen = (currentScreen + 2) % 3;
-}
+bool autoRunning = false;
+bool recording = false;
 
 void initialize() {
     pros::lcd::initialize();
@@ -306,7 +286,6 @@ void initialize() {
             }
             
             lemlib::telemetrySink()->info("Chassis pose: {}", chassis.getPose());
-           
             pros::delay(20);
         }
     });
@@ -351,12 +330,12 @@ void redRingSide() {
     chassis.setPose(0, 0, 135);
 
     // ally stake
-    ladybrown_target = FAR;
+    ladybrownTarget = FAR;
     pros::delay(1000);
 
     // clear ally stake
     chassis.moveToPose(-6, 12, 135, 750, {.forwards=false});
-    ladybrown_target = IDLE;
+    ladybrownTarget = IDLE;
     pros::delay(500);
 
     // get ally stake ring
@@ -408,16 +387,14 @@ void autonomous(void) {
 
     pros::Task movementTimer([&](){
         while (autoRunning) {
-            while (chassis.isInMotion() || mogoChassis.isInMotion()) {
-                movementTime = pros::millis() - movementStartTime;
-                movementStarted = true;
-                pros::delay(20);
+            if (chassis.isInMotion() || mogoChassis.isInMotion() && !movementStartTime) {
+                movementStartTime = pros::millis();
             }
 
-            if (movementStarted) {
-                pros::lcd::print(movement, "Move Time: %f", movementTime);
+            if (!chassis.isInMotion() && !mogoChassis.isInMotion() && movementStartTime) {
+                pros::lcd::print(movement, "Move Time: %f", pros::millis() - movementStartTime);
                 movement += 1;
-                movementStarted = false;
+                movementStartTime = 0;
             }
             pros::delay(20);
         }
@@ -425,14 +402,13 @@ void autonomous(void) {
 
     pros::Task colorSort([&]() {
         while (autoRunning) {
-            colorReading = colorSensor.get_hue();
             secondStageIntake.set_zero_position(0);
 
-            if (colorReading > 140 && colorReading <= 340 && autoNum % 2 == 0) {
+            if (colorSensor.get_hue() > 140 && colorSensor.get_hue() <= 340 && autoNum % 2 == 0) {
                 while (secondStageIntake.get_position() < 0.370) intake.move_voltage(12000);
                 intake.move_voltage(-12000);
                 continue;
-            } else if (colorReading < 140 && colorReading >= 340 && autoNum % 2 != 0 || autoNum == 0) {
+            } else if (colorSensor.get_hue() < 140 && colorSensor.get_hue() >= 340 && autoNum % 2 != 0 || autoNum == 0) {
                 while (secondStageIntake.get_position() < 0.370) intake.move_voltage(12000);
                 intake.move_voltage(-12000);
                 continue;
@@ -455,11 +431,11 @@ void autonomous(void) {
 	});
 
 	pros::Task ladybrownMove([&]() {
-		if (scoreState) ladybrown_target = FAR;
-		else if (loadState) ladybrown_target = LOAD;
-		else ladybrown_target = IDLE;
+		if (scoreState) ladybrownTarget = FAR;
+		else if (loadState) ladybrownTarget = LOAD;
+		else ladybrownTarget = IDLE;
 
-		ladybrown.move_voltage(ladybrownPID.update(ladybrown_target - ladybrownPos.get_position()));
+		ladybrown.move_voltage(ladybrownPID.update(ladybrownTarget - ladybrownPos.get_position()));
 		pros::delay(20);
     });
 
@@ -493,8 +469,8 @@ void opcontrol() {
         recordings = fopen("/usd/recording.txt", "a");
         fprintf(recordings, "");
         fprintf(recordings, "pros::Task ladybrownMove([&](){");
-        fprintf(recordings, "while(!autoRunning){if(scoreState)ladybrown_target=FAR;else if(loadState)ladybrown_target=LOAD;else ladybrown_target=IDLE;");
-        fprintf(recordings, "ladybrown.move_voltage(ladybrownPID.update(ladybrown_target-ladybrownPos.get_position()));pros::delay(20);}});\n");
+        fprintf(recordings, "while(!autoRunning){if(scoreState)ladybrownTarget=FAR;else if(loadState)ladybrownTarget=LOAD;else ladybrownTarget=IDLE;");
+        fprintf(recordings, "ladybrown.move_voltage(ladybrownPID.update(ladybrownTarget-ladybrownPos.get_position()));pros::delay(20);}});\n");
     }
 
     while (true) {
@@ -517,13 +493,8 @@ void opcontrol() {
             recording = !recording;
             ctrl.rumble("**");
             
-            if (recording && !fileOpen) {
-                recordings = fopen("/usd/recording.txt", "a");
-                fileOpen = true;
-            } else if (!recording && fileOpen) {
-                fclose(recordings);
-                fileOpen = false;
-            }
+            if (recording && recordings == nullptr) recordings = fopen("/usd/recording.txt", "a");
+            else if (!recording && recordings != nullptr) fclose(recordings);
         }
 
         if (recording) {
@@ -553,7 +524,6 @@ void opcontrol() {
             else ctrl.print(1, 0, "PID Tuner: Angular");
             
             holdCount = 0;
-
             while (ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_B) && holdCount < 500) {
                 holdCount += 20;
                 pros::delay(20);

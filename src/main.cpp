@@ -169,8 +169,6 @@ RecordingSetup varRecorder(recordings, VAR);
 RecordingSetup motorRecorder(recordings, MOTOR);
 RecordingSetup digitalRecorder(recordings, DIGITAL);
 
-ScreenSetup menu();
-
 std::string tunePID(bool tuneType = LATERAL) {
 
     const int start_time = pros::millis();
@@ -255,10 +253,30 @@ std::string tunePID(bool tuneType = LATERAL) {
         imu.reset(true);
     }
     return data;
-}
+} 
 
 bool autoRunning = false;
 bool recording = false;
+
+void prevAuto() {
+    --autoNum;
+}
+
+void selectAuto() {
+    selecting = false;
+}
+
+void nextAuto() {
+    ++autoNum;
+}
+
+void nextScreen() {
+    currentScreen = (currentScreen + 1) % 3;
+}
+
+void prevScreen() {
+    currentScreen = (currentScreen + 2) % 3;
+}
 
 void initialize() {
     pros::lcd::initialize();

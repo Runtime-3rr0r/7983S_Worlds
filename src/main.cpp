@@ -517,31 +517,20 @@ void opcontrol() {
         }
 
         if (recording) {
-            varRecorder.update("leftY", leftY, lastLeftY);
-            varRecorder.update("rightX", rightX, lastRightX);
+            lastLeftY = varRecorder.update("leftY", leftY, lastLeftY);
+            lastRightX = varRecorder.update("rightX", rightX, lastRightX);
             fprintf(recordings, "chassis.arcade(leftY, rightX, false, 0.75);");
-            motorRecorder.update("firstStageIntake", firstStageIntake.get_voltage(), lastFirstStageVoltage);
-            motorRecorder.update("secondStageIntake", secondStageIntake.get_voltage(), lastSecondStageVoltage);
-            varRecorder.update("loadState", loadState, lastLoadState);
-            varRecorder.update("scoreState", scoreState, lastScoreState);
-            digitalRecorder.update("leftDoink", leftDoink.is_extended(), lastLeftDoink);
-            digitalRecorder.update("rightDoink", rightDoink.is_extended(), lastRightDoink);
-            digitalRecorder.update("clamp", clamp.is_extended(), lastClamp);
-            digitalRecorder.update("intakeLift", intakeLift.is_extended(), lastIntakeLift);
+            lastFirstStageVoltage = motorRecorder.update("firstStageIntake", firstStageIntake.get_voltage(), lastFirstStageVoltage);
+            lastSecondStageVoltage = motorRecorder.update("secondStageIntake", secondStageIntake.get_voltage(), lastSecondStageVoltage);
+            lastLoadState = varRecorder.update("loadState", loadState, lastLoadState);
+            lastScoreState = varRecorder.update("scoreState", scoreState, lastScoreState);
+            lastLeftDoink = digitalRecorder.update("leftDoink", leftDoink.is_extended(), lastLeftDoink);
+            lastRightDoink = digitalRecorder.update("rightDoink", rightDoink.is_extended(), lastRightDoink);
+            lastClamp = digitalRecorder.update("clamp", clamp.is_extended(), lastClamp);
+            lastIntakeLift = digitalRecorder.update("intakeLift", intakeLift.is_extended(), lastIntakeLift);
     
             fprintf(recordings, "pros::delay(%d);\n", pros::millis() - lastWrite);
             lastWrite = pros::millis();
-            
-            lastLeftY = leftY;
-            lastRightX = RightX;
-            lastFirstStageVoltage = firstStageIntake.get_voltage();
-            lastSecondStageVoltage = secondStageIntake.get_voltage();
-            lastLoadState = loadState;
-            lastScoreState = scoreState;
-            lastLeftDoink = leftDoink.is_extended();
-            lastRightDoink = rightDoink.is_extended();
-            lastClamp = clamp.is_extended();
-            lastIntakeLift = intakeLift.is_extended();
         }
         
         pros::delay(20);

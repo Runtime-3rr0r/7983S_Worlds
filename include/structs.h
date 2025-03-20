@@ -47,9 +47,10 @@ struct RecordingSetup {
   				controlType(controlType)
   				{}
 
-  	void update(const std::string& name, int value, int lastValue) {
+  	int update(const std::string& name, int value, int lastValue) {
         if (value != lastValue && controlType == MOTOR) fprintf(fileName, "%s.move_voltage(%d);", name.c_str(), value);
         else if (value != lastValue && controlType == DIGITAL) fprintf(fileName, "%s.set_value(%d);", name.c_str(), value);
         else if (value != lastValue) fprintf(fileName, "%s=%d;", name.c_str(), value);
+        return value;
     }
 };

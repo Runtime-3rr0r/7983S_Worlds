@@ -1,17 +1,12 @@
 #include "main.h"
 
-int lastSecondStageVoltage = 0;
-int lastFirstStageVoltage = 0;
 int movementStartTime = 0;
 int ladybrownTarget = 0;
 int currentScreen = 0;
 int coordLogItem = 0;
 int movementTime = 0;
-int lastRightX = 0;
 int allyColor = 0;
-int lastLeftY = 0;
 int holdCount = 0;
-int lastWrite = 0;
 int tuneType = 0;
 int spintake = 0;
 int movement = 0;
@@ -19,13 +14,7 @@ int autoNum = 0;
 int rightX;
 int leftY;
 
-bool lastScoreState = false;
-bool lastRightDoink = false;
-bool lastIntakeLift = false;
-bool lastLoadState = false;
-bool lastLeftDoink = false;
 bool scoreState = false;
-bool lastClamp = false;
 bool loadState = false;
 bool selecting = true;
 
@@ -481,6 +470,18 @@ void opcontrol() {
     pros::lcd::register_btn0_cb(prevScreen);
     pros::lcd::register_btn1_cb(nextScreen);
     
+    int lastSecondStageVoltage = 0;
+    int lastFirstStageVoltage = 0;
+    int lastRightX = 0;
+    int lastLeftY = 0;
+    int lastWrite = 0;
+    bool lastScoreState = false;
+    bool lastRightDoink = false;
+    bool lastIntakeLift = false;
+    bool lastLoadState = false;
+    bool lastLeftDoink = false;
+    bool lastClamp = false;
+    
     lemlib::Timer posProtected(31000);
 
     if (recording) {
@@ -530,6 +531,17 @@ void opcontrol() {
     
             fprintf(recordings, "pros::delay(%d);\n", pros::millis() - lastWrite);
             lastWrite = pros::millis();
+            
+            lastLeftY = leftY;
+            lastRightX = RightX;
+            lastFirstStageVoltage = firstStageIntake.get_voltage();
+            lastSecondStageVoltage = secondStageIntake.get_voltage();
+            lastLoadState = loadState;
+            lastScoreState = scoreState;
+            lastLeftDoink = leftDoink.is_extended();
+            lastRightDoink = rightDoink.is_extended();
+            lastClamp = clamp.is_extended();
+            lastIntakeLift = intakeLift.is_extended();
         }
         
         pros::delay(20);

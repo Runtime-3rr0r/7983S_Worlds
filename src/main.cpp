@@ -1,18 +1,9 @@
 #include "main.h"
 
-int movementStartTime = 0;
 int ladybrownTarget = 0;
 int currentScreen = 0;
-int coordLogItem = 0;
-int movementTime = 0;
-int allyColor = 0;
-int holdCount = 0;
-int tuneType = 0;
 int spintake = 0;
-int movement = 0;
 int autoNum = 0;
-int rightX;
-int leftY;
 
 bool scoreState = false;
 bool loadState = false;
@@ -327,13 +318,11 @@ void initialize() {
 
 void skills() {
     // setup
-    allyColor = RED;
     chassis.setPose(0, 0, 135);
 }
 
 void redRingSide() {
     // setup
-    allyColor = RED;
     chassis.setPose(0, 0, 135);
 
     // ally stake
@@ -372,24 +361,25 @@ void redRingSide() {
 
 void blueRingSide() {
     // setup
-    allyColor = BLUE;
     chassis.setPose(0, 0, 0);
 }
 
 void redGoalSide() {
     // setup
-    allyColor = RED;
     chassis.setPose(0, 0, 0);
 }
 
 void blueGoalSide() {
     // setup
-    allyColor = BLUE;
     chassis.setPose(0, 0, 0);
 }
 
 void autonomous(void) {
+    int movementStartTime = 0;
+    int moveNum = 0;
+    
     pros::lcd::clear();
+    
     autoRunning = true;
 
     pros::Task movementTimer([&](){
@@ -399,8 +389,8 @@ void autonomous(void) {
             }
 
             if (!chassis.isInMotion() && !mogoChassis.isInMotion() && movementStartTime) {
-                pros::lcd::print(movement, "Move Time: %f", pros::millis() - movementStartTime);
-                movement += 1;
+                pros::lcd::print(moveNum, "Move Time: %f", pros::millis() - movementStartTime);
+                moveNum += 1;
                 movementStartTime = 0;
             }
             pros::delay(20);
@@ -475,6 +465,12 @@ void opcontrol() {
     int lastRightX = 0;
     int lastLeftY = 0;
     int lastWrite = 0;
+    int coordLogItem = 0;
+    int holdCount = 0;
+    int tuneType = 0;
+    int rightX = 0;
+    int leftY = 0;
+
     bool lastScoreState = false;
     bool lastRightDoink = false;
     bool lastIntakeLift = false;

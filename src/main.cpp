@@ -151,7 +151,8 @@ RecordingSetup digitalRecorder(recordings, DIGITAL);
 
 std::string tunePID(bool tuneType = LATERAL) {
 
-    const int start_time = pros::millis();
+    const int startTime = pros::millis();
+    const float TUNERATE = 1.0;
 
     float kP = 0.01;
     float kD = 0;
@@ -162,22 +163,19 @@ std::string tunePID(bool tuneType = LATERAL) {
     float lowestOvershoot = 1000;
     float lateralTarget = 24 / (2 * M_PI / 360) * 100;
 
-    std::string displayKP = std::to_string(kP);
-    std::string displayKD = std::to_string(kD);
-    std::string displayLowestOvershoot = std::to_string(lowestOvershoot);
-    std::string data = displayKP + ", " + displayKD + ", " + displayLowestOvershoot;
-
     int restoreCount = 0;
     int consistencyCount = 0;
     int angularTarget = 90;
 
-    bool restoreAvailable = false;
     bool tunerEnabled = true;
+    bool cleanup = false;
+    
+    std::string data = std::to_string(kP) + ", " + std::to_string(kD) + ", " + std::to_string(lowestOvershoot);
 
     lemlib::PID movementPID(kP, 0, kD);
 
     while (tunerEnabled) {
-        while (error != 0 || pros::millis() - start_time < TIMEOUT) {
+        while (error != 0 || pros::millis() - startTime < TIMEOUT) {
 
             if (ctrl.get_digital(pros::E_CONTROLLER_DIGITAL_B)) tunerEnabled = false;
 
@@ -199,29 +197,29 @@ std::string tunePID(bool tuneType = LATERAL) {
 
         if (overshootDistance < lowestOvershoot) overshootDistance = lowestOvershoot;
 
-        if (overshootDistance > lowestOvershoot && restoreAvailable) {
+        if (overshootDistance > lowestOvershoot && lastKD != kD) {
             kP = lastKP;
             kD = lastKD;
+            restoreCount += 1;
+            if (cleanup) break;
         } else {
-            if (overshootDistance > THRESHOLD) {
-                kD += TUNERATE * overshootDistance;
-                restoreAvailable = true;
-                restoreCount += 1;
-            } else {
+            if (overshootDistance > THRESHOLD) kD += TUNERATE * overshootDistance;
+            else {
                 kP += TUNERATE;
-                restoreAvailable = false;
                 restoreCount = 0;
             }
         }
 
+        if (restoreCount >= 5) {
+            kP -= TUNERATE;
+            cleanup = true;
+        }
+        
         if (consistencyCount == 5) return data;
         else if (kP == lastKP && kD == lastKD) consistencyCount += 1;
 
         lemlib::PID movementPID(kP, 0, kD);
-        displayKP = std::to_string(kP);
-        displayKD = std::to_string(kD);
-        displayLowestOvershoot = std::to_string(lowestOvershoot);
-        data = displayKP + ", " + displayKD + ", " + displayLowestOvershoot;
+        data = std::to_string(kP) + ", " + std::to_string(kD) + ", " + std::to_string(lowestOvershoot);
         lastKP = kP;
         lastKD = kD;
 
@@ -374,7 +372,7 @@ void blueGoalSide() {
     chassis.setPose(0, 0, 0);
 }
 
-void autonomous(void) {
+void autonomous() {
     int movementStartTime = 0;
     int moveNum = 0;
     

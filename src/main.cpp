@@ -1,4 +1,5 @@
 #include "main.h"
+#include "pros/motor_group.hpp"
 
 int ladybrownTarget = 0;
 int currentScreen = 0;
@@ -19,10 +20,12 @@ pros::adi::Pneumatics clamp = pros::adi::Pneumatics(8, false);
 pros::MotorGroup leftDrive({-18, -19, 20}, pros::MotorGearset::blue);
 pros::MotorGroup rightDrive({12, 13, -14}, pros::MotorGearset::blue);
 pros::MotorGroup intake({9, 1});
+pros::MotorGroup ladybrown({-10, -21}, pros::MotorGearset::green);
 
 pros::Motor firstStageIntake(9, pros::MotorGearset::green);
 pros::Motor secondStageIntake(1, pros::MotorGearset::blue);
-pros::Motor ladybrown(-10, pros::MotorGearset::green);
+pros::Motor ladybrownLeft(-10, pros::MotorGearset::green);
+pros::Motor ladybrownRight(-21, pros::MotorGearset::green);
 
 pros::Rotation horizontalEncoder(17);
 pros::Rotation verticalEncoder(-15);
